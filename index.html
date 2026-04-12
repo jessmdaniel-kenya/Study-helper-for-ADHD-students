@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FlowState — Study Your Way</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="nav-brand">⚡ <span>FlowState</span></div>
+    <div class="nav-links">
+      <a href="index.html" class="active">Home</a>
+      <a href="superpowers.html">Superpowers</a>
+      <a href="resources.html">Resources</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="login.html">Login</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero">
+      <div class="badge">🧠 BUILT FOR DIFFERENT BRAINS</div>
+      <h1>YOUR BRAIN<br/>ISN'T BROKEN</h1>
+      <p>It's running <strong>different software</strong>. FlowState helps you find the environment where your ADHD brain <em>thrives</em> — not just copes.</p>
+      <div class="hero-btns">
+        <a href="quiz.html" class="btn-primary">Find My Flow ⚡</a>
+        <a href="resources.html" class="btn-secondary">Browse Resources</a>
+      </div>
+    </section>
+
+    <!-- SOUND SELECTOR -->
+    <section class="sound-section">
+      <h2>SET YOUR SOUND</h2>
+      <p class="section-sub">The right noise isn't a distraction — it's fuel. ADHD brains often thrive in ambient chaos, not silence.</p>
+      <div class="sound-grid">
+        <div class="sound-card" data-sound="chaos" data-src="https://www.soundsnap.com/tags/classroom">
+          <div class="sound-icon">🏫</div>
+          <div class="sound-label">Noisy Classroom</div>
+          <div class="sound-desc">Chatter, shuffling, life</div>
+          <div class="sound-playing hidden">▶ Playing...</div>
+        </div>
+        <div class="sound-card" data-sound="cafe">
+          <div class="sound-icon">☕</div>
+          <div class="sound-label">Coffee Shop</div>
+          <div class="sound-desc">Low hum, espresso machine</div>
+          <div class="sound-playing hidden">▶ Playing...</div>
+        </div>
+        <div class="sound-card" data-sound="rain">
+          <div class="sound-icon">🌧️</div>
+          <div class="sound-label">Heavy Rain</div>
+          <div class="sound-desc">Drumming, unpredictable</div>
+          <div class="sound-playing hidden">▶ Playing...</div>
+        </div>
+        <div class="sound-card" data-sound="music">
+          <div class="sound-icon">🎵</div>
+          <div class="sound-label">Lo-fi Beats</div>
+          <div class="sound-desc">Rhythmic, energetic</div>
+          <div class="sound-playing hidden">▶ Playing...</div>
+        </div>
+        <div class="sound-card" data-sound="silence">
+          <div class="sound-icon">🔇</div>
+          <div class="sound-label">Silence</div>
+          <div class="sound-desc">For the rare moment</div>
+          <div class="sound-playing hidden">▶ Selected</div>
+        </div>
+      </div>
+      <div id="sound-feedback" class="sound-feedback hidden"></div>
+      <div class="sound-tip">
+        Can't find your sound here? Try searching <strong>"8 hour library ambience"</strong> or <strong>"noisy café study sounds"</strong> on YouTube — your brain will tell you when it's right.
+      </div>
+    </section>
+
+    <!-- PHILOSOPHY PILLS -->
+    <section class="pills-section">
+      <div class="pill-card">
+        <div class="pill-icon">🧠</div>
+        <div class="pill-title">Different OS</div>
+        <div class="pill-sub">Not broken — differently wired</div>
+      </div>
+      <div class="pill-card">
+        <div class="pill-icon">⚡</div>
+        <div class="pill-title">Dopamine-driven</div>
+        <div class="pill-sub">Attention follows meaning, not rules</div>
+      </div>
+      <div class="pill-card">
+        <div class="pill-icon">🌪️</div>
+        <div class="pill-title">Intensity is a feature</div>
+        <div class="pill-sub">You don't have less focus — you have more</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
