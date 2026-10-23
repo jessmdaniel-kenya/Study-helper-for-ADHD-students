@@ -294,6 +294,24 @@ function showResult() {
   card.style.background = `linear-gradient(135deg, ${profile.color}22, #12121a)`;
   card.style.borderColor = `${profile.color}55`;
 
+  // Save quiz result to the backend
+  fetch('save_quiz.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      profile_name: profile.name,
+      profile_icon: profile.icon,
+      sound: profile.sound,
+      score: score
+    })
+  }).then(res => res.json())
+    .then(data => {
+      if (!data.success) {
+        console.warn('Quiz save failed:', data.message);
+      }
+    })
+    .catch(err => console.warn('Quiz save error:', err));
+
   document.getElementById('retake-btn').addEventListener('click', () => {
     step = 0; answers = [];
     resultEl.classList.add('hidden');

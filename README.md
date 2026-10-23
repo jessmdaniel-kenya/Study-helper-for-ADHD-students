@@ -12,7 +12,7 @@ FlowState is a front-end study hub with a PHP/MySQL back-end for user accounts a
 |------|---------|
 | `index.html` | Landing page — hero section, sound selector, philosophy pills |
 | `superpowers.html` | ADHD "superpower" cards with expandable details |
-| `resources.html` | Community resource library with mood/subject filters and upload form |
+| `resources.php` | Community resource library with mood/subject filters and upload form |
 | `quiz.html` | Flow-profile quiz (3 questions) that recommends a sound and study style |
 | `login.html` | Login / signup authentication page |
 | `dashboard.php` | Logged-in user dashboard (session-protected) |
@@ -34,7 +34,7 @@ FlowState is a front-end study hub with a PHP/MySQL back-end for user accounts a
   - 🌊 The Deep Diver — Heavy Rain
   - 🎵 The Beat Rider — Lo-fi Beats
   - ⚡ The Social Spark — Coffee Shop
-- **Resources** (`resources.html`): Browse uploaded study materials, filter by mood/subject, like items, and upload your own.
+- **Resources** (`resources.php`): Browse uploaded study materials, filter by mood/subject, like items, and upload your own.
 - **Auth** (`login.html`): Tabbed login/signup forms that POST to `login.php` and `signup.php`.
 
 ### 2. Back end (PHP + MySQL)

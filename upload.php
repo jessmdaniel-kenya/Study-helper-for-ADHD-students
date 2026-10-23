@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->close();
     $conn->close();
 
-    header("Location: resources.html?uploaded=1");
+    header("Location: resources.php?uploaded=1");
     exit();
 }
 ?>
