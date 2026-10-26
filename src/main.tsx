@@ -1,7 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import './index.css' // <-- This is the crucial line
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/600.css'
+import '@fontsource/opendyslexic/400.css'
+import '@fontsource/opendyslexic/700.css'
+import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

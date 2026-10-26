@@ -1,22 +1,21 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import NavBar from './components/Shared/NavBar';
+import AppLayout from './components/Shared/AppLayout';
 import EnergyCheckIn from './pages/EnergyCheckIn';
 import Feed from './pages/Feed';
+import Quiz from './pages/Quiz';
 import Resources from './pages/Resources';
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-[#fbfaf8] text-[#2c2a29] font-sans">
-        <NavBar />
-        <main className="container mx-auto px-4 py-8">
-          <Routes>
-            <Route path="/" element={<EnergyCheckIn />} />
-            <Route path="/feed" element={<Feed />} />
-            <Route path="/resources" element={<Resources />} />
-          </Routes>
-        </main>
-      </div>
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<EnergyCheckIn />} />
+          <Route path="/feed" element={<Feed />} />
+          <Route path="/quiz" element={<Quiz />} />
+          <Route path="/resources" element={<Resources />} />
+        </Routes>
+      </AppLayout>
     </Router>
   );
 }

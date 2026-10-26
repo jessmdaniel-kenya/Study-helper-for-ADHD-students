@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   /* Warmer, organic palette mimicking physical materials */
   --ink: #2c2a29;
@@ -7,8 +9,8 @@
   --warm: #e6c594;
   
   /* Subtle depth */
-  --shadow-sm: 0 2px 4px rgba(44, 42, 41, 0.04);
-  --shadow-md: 0 4px 8px rgba(44, 42, 41, 0.08);
+  --shadow-sm: 0 2px 4px color-mix(in srgb, var(--ink) 4%, transparent);
+  --shadow-md: 0 4px 8px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 /* --- Resets & Base --- */
@@ -20,22 +22,32 @@ body {
   margin: 0; 
   background: var(--paper); 
   color: var(--ink); 
-  font: 18px/1.6 system-ui, -apple-system, sans-serif; 
+  font: 18px/1.6 'Inter', system-ui, -apple-system, sans-serif; 
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- Accessibility & Overrides --- */
-body.dys { 
-  font-family: 'Atkinson Hyperlegible', sans-serif; 
-  letter-spacing: 0.03em; 
-  line-height: 1.9; 
+.app-layout {
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-body.calm *, 
-body.calm *::before,
-body.calm *::after { 
+.app-layout--dyslexia {
+  font-family: 'OpenDyslexic', sans-serif;
+  letter-spacing: 0.03em;
+  line-height: 1.9;
+}
+
+/* --- Accessibility & Overrides --- */
+.app-layout--still *,
+.app-layout--still *::before,
+.app-layout--still *::after {
   animation: none !important; 
   transition: none !important; 
+}
+
+.app-layout--still button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) { 
@@ -100,7 +112,7 @@ button {
   padding: 0.7rem 1.1rem; 
   min-height: 44px; 
   border: 2px solid var(--ink); 
-  background: #ffffff; 
+  background: var(--paper); 
   color: var(--ink); 
   border-radius: 0.5rem; 
   cursor: pointer;
@@ -132,7 +144,7 @@ textarea {
   padding: 0.75rem; 
   border: 2px solid var(--line); 
   border-radius: 0.5rem; 
-  background: #ffffff; 
+  background: var(--paper); 
   color: inherit; 
   margin-bottom: 0.5rem; 
   transition: border-color 0.2s ease;
@@ -150,18 +162,114 @@ textarea {
 }
 
 .card { 
-  background: #ffffff; 
+  background: var(--paper); 
   border: 1px solid var(--line); 
   border-radius: 0.75rem; 
   padding: 1.25rem; 
   box-shadow: var(--shadow-sm);
 }
 
+.ui-card {
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.7rem 1.1rem;
+  border: 2px solid var(--ink);
+  border-radius: 0.5rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.energy-check-in {
+  max-width: 32rem;
+  margin: 10vh auto 0;
+  text-align: center;
+}
+
+.energy-check-in h1 {
+  color: var(--ink);
+  font-size: 2.5rem;
+}
+
+.energy-check-in > .hint {
+  margin: 0 0 2rem;
+  font-size: 1.1rem;
+}
+
+.energy-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+.energy-option {
+  width: 100%;
+  min-height: 88px;
+  justify-content: flex-start;
+  gap: 1rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  box-shadow: none;
+}
+
+.energy-option:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+
+.energy-option[aria-pressed='true'] {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--warm) 45%, var(--paper));
+}
+
+.energy-option__icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--ink);
+}
+
+.energy-option__copy {
+  display: grid;
+  flex: 1;
+  gap: 0.1rem;
+}
+
+.energy-option__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.energy-option__description {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.energy-option__arrow {
+  color: var(--ink);
+  font-size: 1.5rem;
+}
+
 .note { 
   border-left: 4px solid var(--accent); 
   padding-left: 1rem; 
   margin: 1rem 0; 
-  background: rgba(194, 103, 79, 0.05); /* Very faint accent background */
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
   padding-block: 0.5rem;
   border-radius: 0 0.5rem 0.5rem 0;
 }
@@ -225,11 +333,12 @@ mark {
 }
 
 .error { 
-  color: #a92a2a; 
+  color: var(--accent); 
   font-weight: 600; 
 }
 
 .hint { 
-  color: #5a6b70; 
+  color: var(--ink); 
   font-size: 0.9em; 
+  opacity: 0.7;
 }

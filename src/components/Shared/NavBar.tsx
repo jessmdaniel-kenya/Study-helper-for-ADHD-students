@@ -4,7 +4,7 @@ export default function NavBar() {
   const location = useLocation();
 
   return (
-    <header style={{ padding: '1rem', borderBottom: '2px solid var(--line)', backgroundColor: '#fff' }}>
+    <header style={{ padding: '1rem', borderBottom: '2px solid var(--line)', backgroundColor: 'var(--paper)' }}>
       <h1>⚡ FlowState</h1>
       <nav className="row">
         <Link to="/">
