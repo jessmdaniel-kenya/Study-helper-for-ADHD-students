@@ -1,6 +1,10 @@
-import { createRoot } from 'react-dom/client'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import App from './App'
-import './index.css'
+import './index.css' // <-- This is the crucial line
 
-// No StrictMode on purpose: it would run the anonymous sign-in twice in development.
-createRoot(document.getElementById('root')!).render(<App />)
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
