@@ -1,8 +1,16 @@
+import Placeholder from '../components/Shared/Placeholder'
+
 export default function Feed() {
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-4">FlowFeed</h1>
-      <p className="opacity-80">Community posts, confessions, and methods.</p>
-    </div>
-  );
+    <Placeholder
+      label="The community"
+      title="FlowFeed"
+      text="Real students, real brains. No fixing, just sharing."
+      points={[
+        'Open groups anyone can start and run',
+        'Reactions: Same, Uongo hio, I see you',
+        'Posts can be set to reactions only',
+      ]}
+    />
+  )
 }
