@@ -1,4 +1,4 @@
-import Placeholder from '../Shared/Placeholder'
+import Placeholder from '../Shared/placeholder'
 
 export default function TinkersWorkbench() {
   return (

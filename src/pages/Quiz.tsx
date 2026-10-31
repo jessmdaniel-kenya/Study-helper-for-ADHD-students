@@ -1,165 +1,290 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import { supabase } from '../supabase'
+import { countCompletion, ensureSession, extractText, gradeAnswer, makeQuiz } from '../lib/study'
+import type { Completion, QuizQuestion } from '../lib/study'
 
-interface Question {
-  id: number
-  question: string
-  subtext: string
-  options: {
-    label: string
-    desc: string
-    energyMatch: 'Low' | 'Medium' | 'Charged up'
-  }[]
-}
+type Note = { id: string; title: string; full_text: string }
+type Stage = 'setup' | 'quiz' | 'done'
+type Reveal = { ok: boolean; verdict: string; feedback?: string; best: string }
 
-const FLOW_QUESTIONS: Question[] = [
-  {
-    id: 1,
-    question: 'How is your mental battery right now?',
-    subtext: 'Be real with where you are. There is no wrong answer.',
-    options: [
-      { label: '🪫 Low battery / Brain fog', desc: 'Starting feels heavy, small steps only', energyMatch: 'Low' },
-      { label: '🔋 Steady / Grounded', desc: 'Ready for a focused 20-minute chunk', energyMatch: 'Medium' },
-      { label: '⚡ Hyperfocus / Buzzing', desc: 'High energy, ready to dive deep', energyMatch: 'Charged up' },
-    ],
-  },
-  {
-    id: 2,
-    question: 'What kind of sensory environment helps you most today?',
-    subtext: 'Your nervous system decides the rules.',
-    options: [
-      { label: '🔇 Total quiet & muted screen', desc: 'Low stimulation, minimal visuals', energyMatch: 'Low' },
-      { label: '🎧 Lo-fi / background hum', desc: 'Gentle rhythm to anchor focus', energyMatch: 'Medium' },
-      { label: '🔥 Fast-paced race with the clock', desc: 'Dopamine-driven sprint against time', energyMatch: 'Charged up' },
-    ],
-  },
-  {
-    id: 3,
-    question: 'What is your main study goal for this session?',
-    subtext: 'Pick the bite-sized win that feels safest.',
-    options: [
-      { label: 'Just open one note and read 2 lines', desc: 'Zero pressure warm-up teaser', energyMatch: 'Low' },
-      { label: 'Review flashcards on one topic', desc: 'Clear boundaries, structured questions', energyMatch: 'Medium' },
-      { label: 'Break down an overwhelming assignment', desc: 'Map out the full project into mini-steps', energyMatch: 'Charged up' },
-    ],
-  },
-]
+const COUNTS = [5, 8, 10]
 
 export default function Quiz() {
-  const navigate = useNavigate()
-  const [currentIdx, setCurrentIdx] = useState(0)
-  const [answers, setAnswers] = useState<string[]>([])
-  const [result, setResult] = useState<{
-    profile: string
-    recommendedEnergy: 'Low' | 'Medium' | 'Charged up'
-    recommendation: string
-    timerSuggestion: string
-  } | null>(null)
+  const [stage, setStage] = useState<Stage>('setup')
+  const [notes, setNotes] = useState<Note[]>([])
+  const [pick, setPick] = useState('')
+  const [title, setTitle] = useState('')
+  const [text, setText] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [count, setCount] = useState(8)
+  const [save, setSave] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [hint, setHint] = useState('')
+  const [source, setSource] = useState('')
+  const [queue, setQueue] = useState<QuizQuestion[]>([])
+  const [round, setRound] = useState(1)
+  const [idx, setIdx] = useState(0)
+  const [choice, setChoice] = useState<string | null>(null)
+  const [written, setWritten] = useState('')
+  const [sure, setSure] = useState(true)
+  const [reveal, setReveal] = useState<Reveal | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [review, setReview] = useState<QuizQuestion[]>([])
+  const [firstTry, setFirstTry] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [progress, setProgress] = useState<number | null>(null)
+  const [reward, setReward] = useState<Completion['reward'] | null>(null)
+  const quizId = useRef(crypto.randomUUID())
 
-  const handleSelectOption = (energyMatch: 'Low' | 'Medium' | 'Charged up') => {
-    const updated = [...answers, energyMatch]
-    setAnswers(updated)
+  useEffect(() => {
+    (async () => {
+      await ensureSession()
+      const { data } = await supabase.from('materials').select('id, title, full_text').limit(30)
+      if (data) setNotes(data as Note[])
+    })()
+  }, [])
 
-    if (currentIdx + 1 < FLOW_QUESTIONS.length) {
-      setCurrentIdx(currentIdx + 1)
-    } else {
-      // Calculate dominant energy style
-      const lowCount = updated.filter((a) => a === 'Low').length
-      const chargedCount = updated.filter((a) => a === 'Charged up').length
-
-      if (lowCount >= 2) {
-        setResult({
-          profile: 'Gentle Warm-Up Mode',
-          recommendedEnergy: 'Low',
-          recommendation: 'Start tiny. A 50-second teaser or 5-minute glance with muted sensory settings will bypass task-paralysis.',
-          timerSuggestion: '50-second or 5-minute teaser sprint',
-        })
-      } else if (chargedCount >= 2) {
-        setResult({
-          profile: 'High-Drive Momentum',
-          recommendedEnergy: 'Charged up',
-          recommendation: 'Ride the wave before the dopamine dips. Use an open count-up or a 30-minute sprint to tackle heavy notes.',
-          timerSuggestion: '30-minute deep dive sprint',
-        })
-      } else {
-        setResult({
-          profile: 'Structured Rhythm',
-          recommendedEnergy: 'Medium',
-          recommendation: 'The sweet spot. A predictable 20-minute sprint with 5-minute breaks will keep you in steady flow without burnout.',
-          timerSuggestion: '20-minute classic sprint',
-        })
-      }
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setErr('')
+    try {
+      const t = await extractText(f)
+      setText(t)
+      setFileName(f.name)
+      setPick('')
+      if (!title) setTitle(f.name.replace(/\.[^.]+$/, ''))
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'We couldn’t read that file.')
     }
   }
 
-  const resetQuiz = () => {
-    setCurrentIdx(0)
-    setAnswers([])
-    setResult(null)
+  function choose(id: string) {
+    setPick(id)
+    const n = notes.find((x) => x.id === id)
+    if (n) { setText(n.full_text); setTitle(n.title); setFileName('') }
   }
 
-  const q = FLOW_QUESTIONS[currentIdx]
+  function resetAnswer() {
+    setChoice(null); setWritten(''); setSure(true); setReveal(null)
+  }
 
-  return (
-    <>
-      <div className="step-label">DISCOVERY QUIZ</div>
-      <h2 className="page-title">Find Your Flow</h2>
-      <p className="page-sub">Three quick questions to calibrate your environment to your brain’s frequency today.</p>
+  async function make() {
+    setBusy(true); setErr(''); setHint('')
+    try {
+      const body = text.trim()
+      const r = await makeQuiz(body, count)
+      let h = r.truncated ? 'This is a long document, so the quiz uses the first part of it. ' : ''
+      if (save && !pick) {
+        const { error } = await supabase.from('materials').insert({ title: title || 'Untitled', full_text: body })
+        if (error) h += 'Your quiz is ready, but we couldn’t save the notes.'
+      }
+      setHint(h)
+      setSource(body)
+      setQueue(r.questions)
+      setTotal(r.questions.length)
+      setRound(1); setIdx(0); setReview([]); setFirstTry(0)
+      quizId.current = crypto.randomUUID()
+      resetAnswer()
+      setStage('quiz')
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Something went wrong. Try again.')
+    }
+    setBusy(false)
+  }
 
-      {!result ? (
+  const q = queue[idx]
+
+  async function check(picked?: string) {
+    if (!q || reveal) return
+    let r: Reveal
+    if (q.type === 'mcq') {
+      const ok = picked === q.answer
+      setChoice(picked ?? null)
+      r = { ok, verdict: ok ? 'Got it' : 'Not yet', best: q.answer }
+    } else {
+      setChecking(true)
+      try {
+        const g = await gradeAnswer(source, q, written)
+        r = { ok: g.verdict === 'Got it', verdict: g.verdict, feedback: g.feedback, best: g.best_fit || q.answer }
+      } catch {
+        r = { ok: false, verdict: 'Not yet', feedback: 'We couldn’t grade that one. Compare it with the answer below.', best: q.answer }
+      }
+      setChecking(false)
+    }
+    setReveal(r)
+    if (round === 1 && r.ok) setFirstTry((n) => n + 1)
+    if (!r.ok || (round === 1 && !sure)) setReview((list) => (list.includes(q) ? list : [...list, q]))
+  }
+
+  async function finish() {
+    setStage('done')
+    const r = await countCompletion('quiz', quizId.current)
+    if (r) {
+      setProgress(r.to_next)
+      if (r.reward) setReward(r.reward)
+    }
+  }
+
+  function next() {
+    resetAnswer()
+    if (idx + 1 < queue.length) { setIdx(idx + 1); return }
+    if (round === 1 && review.length > 0) {
+      setQueue(review); setReview([]); setRound(2); setIdx(0)
+      return
+    }
+    finish()
+  }
+
+  function again() {
+    setQueue(review); setReview([]); setRound(2); setIdx(0)
+    resetAnswer()
+    setStage('quiz')
+  }
+
+  function restart() {
+    setStage('setup'); setText(''); setFileName(''); setPick(''); setTitle(''); setProgress(null)
+  }
+
+  if (stage === 'setup') {
+    const ready = text.trim().length >= 200
+    return (
+      <>
+        <div className="step-label">Study</div>
+        <h2 className="section-title">Make a quiz from your notes</h2>
+        <p className="sub-text">Upload a file or paste notes. Every question comes from your own material, and every answer is explained.</p>
+
         <div className="card stack">
-          <div className="row" style={{ justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span className="hint">Question {currentIdx + 1} of {FLOW_QUESTIONS.length}</span>
-            <span className="subj-tag">Calibration</span>
-          </div>
+          <label className="hint" htmlFor="quiz-file">Upload a PDF, Word file, TXT or MD</label>
+          <input id="quiz-file" type="file" accept=".pdf,.docx,.txt,.md" onChange={onFile} />
+          {fileName && <p className="hint">Loaded {fileName} ({text.length.toLocaleString()} characters)</p>}
 
-          <h3 style={{ fontSize: '20px', fontWeight: 700, margin: '4px 0' }}>{q.question}</h3>
-          <p className="hint" style={{ marginBottom: '16px' }}>{q.subtext}</p>
+          {notes.length > 0 && (
+            <>
+              <label className="hint" htmlFor="quiz-saved">Or pick from your saved notes</label>
+              <select id="quiz-saved" className="material-selector" value={pick} onChange={(e) => choose(e.target.value)}>
+                <option value="">Choose…</option>
+                {notes.map((n) => <option key={n.id} value={n.id}>{n.title}</option>)}
+              </select>
+            </>
+          )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {q.options.map((opt, i) => (
-              <button
-                key={i}
-                type="button"
-                className="energy-card"
-                style={{ textAlign: 'left', alignItems: 'flex-start', padding: '16px 20px', cursor: 'pointer' }}
-                onClick={() => handleSelectOption(opt.energyMatch)}
-              >
-                <span className="energy-label" style={{ fontSize: '16px' }}>{opt.label}</span>
-                <span className="energy-desc" style={{ fontSize: '13px', marginTop: '4px' }}>{opt.desc}</span>
+          <input className="field" type="text" placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <textarea
+            className="field"
+            placeholder="Or paste your notes here…"
+            value={text}
+            onChange={(e) => { setText(e.target.value); setPick(''); setFileName('') }}
+          />
+
+          <div className="chips left" role="group" aria-label="Number of questions">
+            {COUNTS.map((n) => (
+              <button key={n} type="button" className={`chip${count === n ? ' active' : ''}`} aria-pressed={count === n} onClick={() => setCount(n)}>
+                {n} questions
               </button>
             ))}
           </div>
+          <label className="hint">
+            <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} /> Save to my notes so search can find it
+          </label>
+
+          <button type="button" className="btn-primary" disabled={!ready || busy} onClick={make}>
+            {busy ? 'Reading your notes…' : 'Make my quiz'}
+          </button>
+          {!ready && <p className="hint">Add at least a few paragraphs (200 characters) to start.</p>}
+          {err && <p className="err" role="alert">{err}</p>}
         </div>
-      ) : (
+      </>
+    )
+  }
+
+  if (stage === 'quiz' && q) {
+    return (
+      <>
+        <div className="step-label">{round === 1 ? 'Quiz' : 'Review round'}</div>
+        <h2 className="section-title">Question {idx + 1} of {queue.length}</h2>
+        <div className="qbar"><div className="qfill" style={{ width: `${(idx / queue.length) * 100}%` }} /></div>
+        {hint && <p className="hint">{hint}</p>}
+
         <div className="card stack">
-          <div className="badge">⚡ YOUR FLOW PROFILE</div>
-          <h3 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '32px', letterSpacing: '1.5px', color: 'var(--a1)', margin: '8px 0 4px' }}>
-            {result.profile}
-          </h3>
-          <p className="sub-text" style={{ marginBottom: '12px' }}>{result.recommendation}</p>
+          <p className="qtext">{q.prompt}</p>
 
-          <div className="resource-card" style={{ marginTop: 0, borderLeft: '4px solid var(--a3)' }}>
-            <div className="res-title">Suggested Entry Point:</div>
-            <p className="snippet">{result.timerSuggestion}</p>
-          </div>
+          {!reveal && (
+            <div className="chips left" role="group" aria-label="How sure are you?">
+              <button type="button" className={`chip${sure ? ' active' : ''}`} aria-pressed={sure} onClick={() => setSure(true)}>Sure</button>
+              <button type="button" className={`chip${!sure ? ' active' : ''}`} aria-pressed={!sure} onClick={() => setSure(false)}>Guessing</button>
+            </div>
+          )}
 
-          <div className="row" style={{ marginTop: '16px' }}>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => navigate('/sprint')}
-            >
-              Start Sprint ({result.recommendedEnergy}) ⚡
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={resetQuiz}
-            >
-              Retake Quiz
-            </button>
-          </div>
+          {q.type === 'mcq' ? (
+            <div className="opts">
+              {(q.options ?? []).map((o) => {
+                const state = reveal ? (o === q.answer ? ' right' : o === choice ? ' wrong' : '') : ''
+                return (
+                  <button key={o} type="button" className={`opt${state}`} disabled={!!reveal} onClick={() => check(o)}>{o}</button>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              <textarea
+                className="field"
+                placeholder="Answer in your own words…"
+                value={written}
+                disabled={!!reveal || checking}
+                onChange={(e) => setWritten(e.target.value)}
+              />
+              {!reveal && (
+                <button type="button" className="btn-primary" disabled={!written.trim() || checking} onClick={() => check()}>
+                  {checking ? 'Checking…' : 'Check my answer'}
+                </button>
+              )}
+            </>
+          )}
+
+          {reveal && (
+            <div className={`reveal ${reveal.ok ? 'ok' : 'miss'}`}>
+              <p className="verdict">{reveal.verdict}</p>
+              {reveal.feedback && <p>{reveal.feedback}</p>}
+              {q.type === 'written' && <p><strong>Best answer:</strong> {reveal.best}</p>}
+              <p>{q.explanation}</p>
+              <p className="hint">From your notes: “{q.quote}”</p>
+              {reveal.ok && !sure && round === 1 && <p className="hint">You marked this as a guess, so it comes back once more.</p>}
+              <button type="button" className="btn-primary" onClick={next}>
+                {idx + 1 < queue.length ? 'Next question' : 'Finish'}
+              </button>
+            </div>
+          )}
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className="step-label">Done</div>
+      <h2 className="section-title">Nice work</h2>
+      <div className="card stack">
+        <p className="qtext">{firstTry} of {total} right on the first try.</p>
+        <p className="sub-text">
+          {review.length > 0
+            ? `${review.length} still worth another look. That’s normal, and they’re the ones that stick.`
+            : 'Everything landed. Pick a new document when you’re ready.'}
+        </p>
+        {progress !== null && <p className="progress-pill" role="status">{progress} more until a surprise</p>}
+        <div className="actions">
+          {review.length > 0 && <button type="button" className="btn-primary" onClick={again}>Try the tricky ones again</button>}
+          <button type="button" className="btn-secondary" onClick={restart}>New document</button>
+        </div>
+      </div>
+
+      {reward && (
+        <div className="reward" role="dialog" aria-label="Surprise unlocked">
+          <div className="big">{reward.emoji ?? '🎁'}</div>
+          <h3>Surprise unlocked{reward.name ? `: ${reward.name}` : '!'}</h3>
+          <button type="button" className="btn-primary" onClick={() => setReward(null)}>Collect</button>
         </div>
       )}
     </>
