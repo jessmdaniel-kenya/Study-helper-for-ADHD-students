@@ -1,12 +1,13 @@
 // src/pages/Resources.tsx
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
-import { supabase } from '../lib/supabase'
+import { supabaseConfigured } from '../lib/supabase'
+import { createMaterial, listMaterials, removeMaterial, signedFileUrl } from '../lib/materials'
 import { extractText } from '../lib/extractor'
 
 export default function Resources() {
-  const { materials, addMaterial, deleteMaterial, toggleMarked } = useAppStore()
+  const { materials, addMaterial, deleteMaterial, toggleMarked, setMaterials } = useAppStore()
   const navigate = useNavigate()
 
   const [title, setTitle] = useState('')
@@ -17,84 +18,86 @@ export default function Resources() {
 
   const [showProgress, setShowProgress] = useState<Record<string, boolean>>({})
 
+  useEffect(() => {
+    let active = true
+    void listMaterials()
+      .then((saved) => { if (active) setMaterials(saved) })
+      .catch((error: unknown) => {
+        if (active) setErr(error instanceof Error ? error.message : 'Could not load saved materials.')
+      })
+    return () => { active = false }
+  }, [setMaterials])
+
   const toggleProgressView = (id: string) => {
     setShowProgress(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0])
+    const picked = e.target.files?.[0]
+    if (!picked) return
+    setErr('')
+    if (picked.size > 25 * 1024 * 1024) {
+      setErr('Files must be 25 MB or smaller.')
+      e.target.value = ''
+      setFile(null)
+      return
     }
+    setFile(picked)
   }
 
   const handleAdd = async () => {
-    if (!title.trim() && !file && !notes.trim()) return
+    if (!file && !notes.trim()) return
     setUploading(true)
     setErr('')
-
-    // Read the real text out of the file so the quiz has something to work with.
-    let fileText = ''
-    if (file) {
-      try {
-        fileText = await extractText(file)
-      } catch (x) {
-        setErr(x instanceof Error ? x.message : 'We couldn’t read that file.')
-        setUploading(false)
-        return
-      }
-    }
-    const body = [notes.trim(), fileText].filter(Boolean).join('\n\n')
-    if (!body) {
-      setErr('Add a file or paste some text so there is something to study.')
+    try {
+      const fileText = file ? await extractText(file) : ''
+      const body = [notes.trim(), fileText].filter(Boolean).join('\n\n')
+      if (!body) throw new Error('Add a file or paste some text so there is something to study.')
+      const material = await createMaterial({
+        title: title.trim() || file?.name || 'Untitled Document',
+        content: body,
+        file,
+      })
+      addMaterial(material)
+      setNotes('')
+      setTitle('')
+      setFile(null)
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Could not save this study material.')
+    } finally {
       setUploading(false)
-      return
     }
+  }
 
-    let fileUrl = ''
-
-    if (file) {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-
-      try {
-        const { data, error } = await supabase.storage
-          .from('materials')
-          .upload(fileName, file)
-
-        if (error) {
-          console.warn('Supabase upload failed, using local fallback:', error.message)
-          fileUrl = URL.createObjectURL(file)
-        } else if (data) {
-          const { data: urlData } = supabase.storage.from('materials').getPublicUrl(fileName)
-          fileUrl = urlData.publicUrl
-        }
-      } catch (x) {
-        console.warn('Supabase upload failed, using local fallback:', x)
-        fileUrl = URL.createObjectURL(file)
-      }
+  const handleDelete = async (material: (typeof materials)[number]) => {
+    setErr('')
+    try {
+      await removeMaterial(material.id, material.storagePath)
+      deleteMaterial(material.id)
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Could not delete this study material.')
     }
+  }
 
-    addMaterial({
-      id: Date.now().toString(),
-      title: title.trim() || file?.name || 'Untitled Document',
-      content: body,
-      fileUrl,
-      fileName: file?.name,
-      marked: false,
-      progress: []
-    })
-
-    setNotes('')
-    setTitle('')
-    setFile(null)
-    setUploading(false)
+  const handleOpenFile = async (storagePath?: string) => {
+    try {
+      const url = await signedFileUrl(storagePath)
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+      else setErr('The original file is not stored in the cloud for this material.')
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Could not open the saved file.')
+    }
   }
 
   return (
     <>
       <div className="step-label">YOUR STUDY DESK</div>
       <h2 className="section-title">Open Files</h2>
-      <p className="sub-text">Your materials sit right here in the open so nothing gets lost.</p>
+      <p className="sub-text">
+        {supabaseConfigured
+          ? 'Your notes and original files sync privately to your Supabase account.'
+          : 'Local-only mode: notes save in this browser. Add Supabase settings to sync across devices.'}
+      </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', marginBottom: '56px' }}>
         {materials.length === 0 && <p className="hint">Your desk is empty. Add a file below!</p>}
@@ -122,7 +125,7 @@ export default function Resources() {
                     />
                   </label>
                   <button
-                    onClick={() => deleteMaterial(m.id)}
+                    onClick={() => { void handleDelete(m) }}
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--muted)' }}
                     title="Trash this file"
                   >
@@ -143,10 +146,10 @@ export default function Resources() {
                 <button type="button" className="btn-primary" onClick={() => navigate(`/study?materialId=${encodeURIComponent(m.id)}`)}>
                   Study this
                 </button>
-                {m.fileUrl && (
-                  <a className="btn-secondary" href={m.fileUrl} target="_blank" rel="noreferrer">
-                    Open file
-                  </a>
+                {m.storagePath && (
+                  <button type="button" className="btn-secondary" onClick={() => { void handleOpenFile(m.storagePath) }}>
+                    Open original file
+                  </button>
                 )}
               </div>
 

@@ -21,6 +21,7 @@ export interface Material {
   content: string;
   fileUrl?: string;
   fileName?: string;
+  storagePath?: string;
   marked: boolean;
   progress: MaterialProgress[]; 
 }
@@ -32,6 +33,8 @@ interface AppState {
   setAccessibilityProfile: (profile: Partial<AccessibilityProfile>) => void;
   
   materials: Material[];
+  materialsLoaded: boolean;
+  setMaterials: (materials: Material[]) => void;
   addMaterial: (m: Material) => void;
   deleteMaterial: (id: string) => void;
   toggleMarked: (id: string) => void;
@@ -44,19 +47,8 @@ export const useAppStore = create<AppState>((set) => ({
     reducedMotion: false,
     lowSensory: false,
   },
-  materials: [
-    {
-      id: 'demo-1',
-      title: 'Contract Formation',
-      content: 'An offer must be clear and communicated to the offeree. A valid acceptance creates binding obligations.',
-      marked: false,
-      progress: [
-        { format: 'Flashcards', score: '85%', date: 'Today' },
-        { format: 'Multiple Choice', score: '60%', date: 'Yesterday' },
-        { format: 'Free Response', score: 'In Progress', date: 'Oct 28' }
-      ]
-    }
-  ],
+  materials: [],
+  materialsLoaded: false,
   setEnergyLevel: (energyLevel) => set({ energyLevel }),
   setAccessibilityProfile: (profile) =>
     set((state) => ({
@@ -65,6 +57,7 @@ export const useAppStore = create<AppState>((set) => ({
         ...profile,
       },
     })),
+  setMaterials: (materials) => set({ materials, materialsLoaded: true }),
   addMaterial: (m) => set((state) => ({ materials: [m, ...(state.materials || [])] })),
   deleteMaterial: (id) => set((state) => ({ materials: state.materials.filter(m => m.id !== id) })),
   toggleMarked: (id) => set((state) => ({

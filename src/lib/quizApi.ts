@@ -1,4 +1,5 @@
-import { supabase } from './supabase' // (adjust path as needed)
+import { supabase, supabaseConfigured } from './supabase'
+import { ensureSession } from './auth'
 import { readApiResponse } from './apiResponse'
 
 export type QuizType = 'flashcard' | 'mcq' | 'written'
@@ -14,34 +15,19 @@ export type QuizQuestion = {
 
 export type Grade = { verdict: string; feedback: string; best_fit: string }
 
-// Make sure there is a (guest) session before calling the API.
-let pending: Promise<void> | null = null
-function ensureSession() {
-  pending ??= (async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      const { error } = await supabase.auth.signInAnonymously()
-      if (error) throw error
-    }
-  })().catch((e) => {
-    pending = null
-    throw e
-  })
-  return pending
-}
-
 async function call<T>(body: Record<string, unknown>): Promise<T> {
-  await ensureSession()
-  const { data: { session } } = await supabase.auth.getSession()
-  const r = await fetch('/api/quiz', {
+  const session = supabaseConfigured ? await ensureSession() : null
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (session) headers.authorization = `Bearer ${session.access_token}`
+  const response = await fetch('/api/quiz', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${session?.access_token}` },
+    headers,
     body: JSON.stringify(body),
   })
-  return readApiResponse<T>(r)
+  return readApiResponse<T>(response)
 }
 
-export const makeQuiz = (notes: string, count: number, types: QuizType[]) =>
+export const makeQuiz = (notes: string, count: number, types: QuizType[] = ['mcq', 'written']) =>
   call<{ questions: QuizQuestion[]; truncated: boolean }>({ mode: 'generate', notes, count, types })
 
 export const gradeAnswer = (notes: string, q: QuizQuestion, answer: string) =>

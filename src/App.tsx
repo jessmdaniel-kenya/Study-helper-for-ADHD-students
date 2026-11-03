@@ -1,5 +1,9 @@
 // src/App.tsx
+import { useEffect } from 'react'
 import { HashRouter, Routes, Route, Link } from 'react-router-dom'
+import { useAppStore } from './stores/useAppStore'
+import { listMaterials } from './lib/materials'
+import { supabase, supabaseConfigured } from './lib/supabase'
 import Home from './pages/Home'
 import Resources from './pages/Resources'
 import Study from './pages/Study'
@@ -8,6 +12,33 @@ import EnergyCheckin from './pages/EnergyCheckIn'
 import Feed from './pages/Feed'
 
 export default function App() {
+  const setMaterials = useAppStore((state) => state.setMaterials)
+
+  useEffect(() => {
+    let active = true
+    let generation = 0
+    const refreshMaterials = async () => {
+      const current = ++generation
+      try {
+        const materials = await listMaterials()
+        if (active && current === generation) setMaterials(materials)
+      } catch {
+        if (active && current === generation) setMaterials([])
+      }
+    }
+
+    void refreshMaterials()
+    if (!supabaseConfigured) return () => { active = false }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => { if (active) void refreshMaterials() }, 0)
+    })
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
+  }, [setMaterials])
+
   return (
     <HashRouter>
       <div style={{ 

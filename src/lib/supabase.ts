@@ -1,8 +1,20 @@
-// src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js'
 
-// Replace these with your actual Supabase project URL and anon key from your Supabase dashboard
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL'
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY'
+const configuredUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
+const configuredAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+export const supabaseConfigured = Boolean(
+  configuredUrl &&
+  configuredAnonKey &&
+  configuredUrl.startsWith('https://') &&
+  !configuredUrl.includes('YOUR_SUPABASE') &&
+  !configuredAnonKey.includes('YOUR_SUPABASE'),
+)
+
+// A non-routable placeholder keeps local-only mode bootable. Service functions
+// must check supabaseConfigured before making network calls.
+export const supabase = createClient(
+  supabaseConfigured ? configuredUrl! : 'https://local-only.invalid',
+  supabaseConfigured ? configuredAnonKey! : 'local-only-placeholder-key',
+  { auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } },
+)

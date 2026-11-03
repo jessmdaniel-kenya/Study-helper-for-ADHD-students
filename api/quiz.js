@@ -1,3 +1,8 @@
+import secureHandler from './quiz-secure.js'
+
+export default secureHandler
+
+// Retained legacy code is not exported or invoked.
 // Vercel function: makes quiz questions from a document and grades written answers.
 const MAX_CHARS = 20000
 const SYSTEM =
@@ -35,7 +40,7 @@ const norm = (s) =>
     .trim()
     .toLowerCase()
 
-export default async function handler(req, res) {
+async function legacyHandler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   // Only signed-in (including guest) users may spend AI budget.

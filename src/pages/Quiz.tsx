@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { supabase } from '../supabase'
-import { countCompletion, ensureSession, extractText, gradeAnswer, makeQuiz } from '../lib/study'
-import type { Completion, QuizQuestion } from '../lib/study'
+import { useAppStore } from '../stores/useAppStore'
+import { createMaterial } from '../lib/materials'
+import { countCompletion, extractText, gradeAnswer, makeQuiz } from '../lib/quizPageApi'
+import type { Completion, QuizQuestion } from '../lib/quizPageApi'
 
-type Note = { id: string; title: string; full_text: string }
 type Stage = 'setup' | 'quiz' | 'done'
 type Reveal = { ok: boolean; verdict: string; feedback?: string; best: string }
 
@@ -12,11 +12,14 @@ const COUNTS = [5, 8, 10]
 
 export default function Quiz() {
   const [stage, setStage] = useState<Stage>('setup')
-  const [notes, setNotes] = useState<Note[]>([])
+  const notes = useAppStore((state) => state.materials)
+  const addMaterial = useAppStore((state) => state.addMaterial)
   const [pick, setPick] = useState('')
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
   const [fileName, setFileName] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [completionMaterialId, setCompletionMaterialId] = useState<string | null>(null)
   const [count, setCount] = useState(8)
   const [save, setSave] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -36,7 +39,6 @@ export default function Quiz() {
   const [total, setTotal] = useState(0)
   const [progress, setProgress] = useState<number | null>(null)
   const [reward, setReward] = useState<Completion['reward'] | null>(null)
-  const quizId = useRef(crypto.randomUUID())
 
   useEffect(() => {
     (async () => {
