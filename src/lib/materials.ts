@@ -1,3 +1,4 @@
+// src/lib/materials.ts
 import type { Material } from '../stores/useAppStore'
 import { ensureSession } from './auth'
 import { supabase, supabaseConfigured } from './supabase'
@@ -49,8 +50,8 @@ function writeLocalMaterials(materials: Material[]) {
 
 function allowedExtension(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase() || ''
-  if (!['pdf', 'docx', 'txt', 'md'].includes(extension)) {
-    throw new Error('Use a PDF, DOCX, TXT, or MD file.')
+  if (!['pdf', 'docx', 'txt', 'md', 'png', 'jpg', 'jpeg', 'webp'].includes(extension)) {
+    throw new Error('Use a PDF, DOCX, TXT, MD, or Image file (PNG, JPG, WEBP).')
   }
   if (file.size > MAX_FILE_BYTES) throw new Error('Files must be 25 MB or smaller.')
   return extension

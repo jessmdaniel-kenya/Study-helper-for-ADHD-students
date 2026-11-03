@@ -2,19 +2,20 @@
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import mammoth from 'mammoth/mammoth.browser'
+import Tesseract from 'tesseract.js'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
-// 1. Reads the text out of a PDF, Word (.docx), TXT or MD file, in the browser.
+// 1. Reads the text out of a PDF, Word (.docx), TXT, MD, or Image file in the browser.
 export async function extractText(file: File): Promise<string> {
   const name = file.name.toLowerCase()
   let text = ''
 
   if (file.type.startsWith('image/')) {
-    throw new Error('Images can’t be read yet because text-in-image reading isn’t built. Paste the text instead, or use a PDF, Word or TXT file.')
-  }
-
-  if (name.endsWith('.txt') || name.endsWith('.md')) {
+    // Read the text directly out of the image
+    const result = await Tesseract.recognize(file, 'eng')
+    text = result.data.text
+  } else if (name.endsWith('.txt') || name.endsWith('.md')) {
     text = await file.text()
   } else if (name.endsWith('.docx')) {
     const r = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
@@ -28,11 +29,11 @@ export async function extractText(file: File): Promise<string> {
     }
     text = pages.join('\n\n')
   } else {
-    throw new Error('Please use a PDF, Word (.docx), TXT or MD file. Older .doc files need saving as .docx first.')
+    throw new Error('Please use a PDF, Word (.docx), TXT, MD, or Image file. Older .doc files need saving as .docx first.')
   }
 
   if (text.trim().length < 50) {
-    throw new Error('We couldn’t find readable text in that file. Scanned pages are pictures, so paste the text instead.')
+    throw new Error('We couldn’t find readable text in that file.')
   }
   return text
 }
@@ -49,7 +50,6 @@ export type QuizQuestion = {
 
 // 3. 100% Local Quiz Generation Engine (No network calls, works instantly offline)
 export const makeQuiz = async (notes: string, count: number): Promise<{ questions: QuizQuestion[]; truncated: boolean }> => {
-  // Split notes into readable sentences to build active recall items
   const sentences = notes
     .split(/[\.\?\!]\s+/)
     .map(s => s.trim())
@@ -78,7 +78,6 @@ export const makeQuiz = async (notes: string, count: number): Promise<{ question
     })
   }
 
-  // Fallback if notes are brief
   if (questions.length === 0) {
     questions.push({
       type: 'written',

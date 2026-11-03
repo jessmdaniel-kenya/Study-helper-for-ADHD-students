@@ -179,11 +179,11 @@ export default function Resources() {
 
       <div className="step-label">ADD TO YOUR DESK</div>
       <h2 className="section-title">Add a study material</h2>
-      <p className="sub-text">Upload a PDF, Word, TXT or MD file, or paste your notes.</p>
+      <p className="sub-text">Upload a PDF, Word, TXT, MD, or Image file, or paste your notes.</p>
 
       <div className="card stack">
         <label className="hint" htmlFor="resource-file">Choose a study file (optional)</label>
-        <input id="resource-file" type="file" accept=".pdf,.docx,.txt,.md" onChange={handleFileChange} />
+        <input id="resource-file" type="file" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" onChange={handleFileChange} />
         {file && <p className="hint">Selected: {file.name}</p>}
 
         <label className="hint" htmlFor="resource-title">Title (optional)</label>
