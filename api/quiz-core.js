@@ -1,6 +1,10 @@
 export const MAX_NOTES_CHARS = 20_000
 export const MAX_ANSWER_CHARS = 2_000
 const ALLOWED_TYPES = new Set(['flashcard', 'mcq', 'written'])
+const PROVIDER_MODELS = {
+  deepseek: 'deepseek-chat',
+  nvidia: 'meta/llama-3.3-70b-instruct',
+}
 const STOP_WORDS = new Set([
   'about', 'after', 'again', 'also', 'among', 'because', 'been', 'being', 'between',
   'could', 'during', 'each', 'from', 'have', 'into', 'more', 'most', 'other', 'over',
@@ -9,10 +13,6 @@ const STOP_WORDS = new Set([
   'your', 'and', 'are', 'for', 'not', 'the', 'was', 'when', 'where', 'what', 'then',
   'can', 'will', 'its', 'has', 'had', 'but', 'all', 'any', 'you', 'use', 'used',
 ])
-
-export function isAnthropicEnabled(env = process.env) {
-  return env.AI_MODE === 'anthropic' && Boolean(env.AI_API_KEY)
-}
 
 export function validateQuizRequest(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -29,6 +29,19 @@ export function validateQuizRequest(body) {
   }
 
   const result = { ...body, notes: body.notes.trim() }
+  if (body.provider !== undefined && body.provider !== null) {
+    const { id, apiKey, model } = body.provider
+    if (!Object.hasOwn(PROVIDER_MODELS, id)) {
+      throw new Error('Choose DeepSeek or NVIDIA NIM as the provider.')
+    }
+    if (typeof apiKey !== 'string' || apiKey.trim().length === 0 || apiKey.length > 512) {
+      throw new Error('Enter a valid provider API key.')
+    }
+    if (typeof model !== 'string' || model.trim().length === 0 || model.length > 160) {
+      throw new Error('Enter a valid model name.')
+    }
+    result.provider = { id, apiKey: apiKey.trim(), model: model.trim() }
+  }
   if (body.mode === 'grade') {
     for (const field of ['question', 'reference', 'answer']) {
       if (typeof body[field] !== 'string' || body[field].length > MAX_ANSWER_CHARS) {

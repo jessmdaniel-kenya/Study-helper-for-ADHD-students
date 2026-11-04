@@ -1,5 +1,3 @@
-import { supabase, supabaseConfigured } from './supabase'
-import { ensureSession } from './auth'
 import { readApiResponse } from './apiResponse'
 
 export type QuizType = 'flashcard' | 'mcq' | 'written'
@@ -15,20 +13,29 @@ export type QuizQuestion = {
 
 export type Grade = { verdict: string; feedback: string; best_fit: string }
 
-async function call<T>(body: Record<string, unknown>): Promise<T> {
-  const session = supabaseConfigured ? await ensureSession() : null
-  const headers: Record<string, string> = { 'content-type': 'application/json' }
-  if (session) headers.authorization = `Bearer ${session.access_token}`
+export type QuizProvider = 'deepseek' | 'nvidia'
+export type QuizProviderConfig = {
+  id: QuizProvider
+  apiKey: string
+  model: string
+}
+
+async function call<T>(body: Record<string, unknown>, provider?: QuizProviderConfig): Promise<T> {
   const response = await fetch('/api/quiz', {
     method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...body, ...(provider ? { provider } : {}) }),
   })
   return readApiResponse<T>(response)
 }
 
-export const makeQuiz = (notes: string, count: number, types: QuizType[] = ['mcq', 'written']) =>
-  call<{ questions: QuizQuestion[]; truncated: boolean }>({ mode: 'generate', notes, count, types })
+export const makeQuiz = (
+  notes: string,
+  count: number,
+  types: QuizType[] = ['mcq', 'written'],
+  provider?: QuizProviderConfig,
+) =>
+  call<{ questions: QuizQuestion[]; truncated: boolean }>({ mode: 'generate', notes, count, types }, provider)
 
-export const gradeAnswer = (notes: string, q: QuizQuestion, answer: string) =>
-  call<Grade>({ mode: 'grade', notes, question: q.prompt, reference: q.answer, answer })
+export const gradeAnswer = (notes: string, q: QuizQuestion, answer: string, provider?: QuizProviderConfig) =>
+  call<Grade>({ mode: 'grade', notes, question: q.prompt, reference: q.answer, answer }, provider)

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { KeyRound } from 'lucide-react'
 
 export default function Auth() {
   const navigate = useNavigate()
@@ -45,7 +46,7 @@ export default function Auth() {
 
   return (
     <div className="card stack" style={{ maxWidth: '420px', margin: '8vh auto' }}>
-      <div className="badge">STUDENT PORTAL 🔑</div>
+      <div className="badge"><KeyRound size={15} aria-hidden="true" /> STUDENT PORTAL</div>
       <h2 className="section-title">Sign In to Your Desk</h2>
       <p className="sub-text">Access your saved notes and CAT prep sync across devices.</p>
 
@@ -56,7 +57,7 @@ export default function Auth() {
         <div>
           <label className="hint" style={{ display: 'block', marginBottom: '6px' }}>Email Address</label>
           <input 
-            type="email5" 
+            type="email" 
             className="field" 
             placeholder="student@university.ac.ke"
             value={email}
@@ -80,7 +81,7 @@ export default function Auth() {
         </div>
 
         <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '8px' }}>
-          {loading ? 'Processing...' : 'Sign In ⚡'}
+          {loading ? 'Processing...' : 'Sign in'}
         </button>
 
         <button type="button" className="btn-secondary" onClick={handleSignUp} disabled={loading}>

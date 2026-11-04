@@ -1,5 +1,6 @@
 // src/pages/Feed.tsx
 import { useState } from 'react'
+import { Heart, MessageCircle, Send } from 'lucide-react'
 
 interface Post {
   id: string;
@@ -33,13 +34,13 @@ export default function Feed() {
   }
 
   return (
-    <div className="stack" style={{ gap: '20px' }}>
-      <div className="card stack">
-        <div className="badge">COMMUNITY HUB 🌐</div>
+    <div className="page stack">
+      <section className="card stack">
+        <div className="badge"><MessageCircle size={15} aria-hidden="true" /> COMMUNITY HUB</div>
         <h2 className="section-title">Study Group Feed</h2>
         <p className="sub-text">Share tips, notes, and encouragement with your classmates ahead of tomorrow.</p>
 
-        <form onSubmit={handleCreatePost} className="stack" style={{ marginTop: '12px' }}>
+        <form onSubmit={handleCreatePost} className="form-stack">
           <textarea 
             className="field" 
             placeholder="Share a study tip or question with the group..." 
@@ -47,11 +48,11 @@ export default function Feed() {
             value={newPost}
             onChange={e => setNewPost(e.target.value)}
           ></textarea>
-          <button type="submit" className="btn-primary">Post to Community 🚀</button>
+          <button type="submit" className="btn-primary"><Send size={16} aria-hidden="true" /> Post to community</button>
         </form>
-      </div>
+      </section>
 
-      <div className="stack" style={{ gap: '12px' }}>
+      <div className="feed-list">
         {posts.map(p => (
           <div key={p.id} className="card stack">
             <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -60,10 +61,10 @@ export default function Feed() {
             </div>
             <p style={{ fontSize: '15px', lineHeight: '1.5' }}>{p.content}</p>
             <div className="row" style={{ justifyContent: 'flex-end', gap: '8px' }}>
-              <button type="button" className="btn-secondary" style={{ padding: '4px 10px', fontSize: '13px' }} onClick={() => {
+              <button type="button" className="btn-secondary like-button" onClick={() => {
                 setPosts(posts.map(item => item.id === p.id ? { ...item, likes: item.likes + 1 } : item))
               }}>
-                ❤️ {p.likes} Likes
+                <Heart size={15} aria-hidden="true" /> {p.likes} likes
               </button>
             </div>
           </div>

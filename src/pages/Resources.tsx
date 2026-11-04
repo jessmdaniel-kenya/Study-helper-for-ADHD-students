@@ -1,10 +1,15 @@
 // src/pages/Resources.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { ChangeEvent, DragEvent } from 'react'
 import { useAppStore } from '../stores/useAppStore'
 import { supabaseConfigured } from '../lib/supabase'
 import { createMaterial, listMaterials, removeMaterial, signedFileUrl } from '../lib/materials'
 import { extractText } from '../lib/extractor'
+import { BookOpen, Check, ChevronDown, ChevronUp, CloudUpload, ExternalLink, FileText, FolderOpen, Trash2, X } from 'lucide-react'
+
+const ACCEPTED_FILE_TYPES = '.pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp'
+const MAX_FILE_BYTES = 25 * 1024 * 1024
 
 export default function Resources() {
   const { materials, addMaterial, deleteMaterial, toggleMarked, setMaterials } = useAppStore()
@@ -15,6 +20,8 @@ export default function Resources() {
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [err, setErr] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [showProgress, setShowProgress] = useState<Record<string, boolean>>({})
 
@@ -32,17 +39,45 @@ export default function Resources() {
     setShowProgress(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = e.target.files?.[0]
+  const handleFileSelection = (files: FileList | File[]) => {
+    const picked = files[0]
     if (!picked) return
     setErr('')
-    if (picked.size > 25 * 1024 * 1024) {
+    if (picked.size > MAX_FILE_BYTES) {
       setErr('Files must be 25 MB or smaller.')
-      e.target.value = ''
+      setFile(null)
+      return
+    }
+    if (!ACCEPTED_FILE_TYPES.split(',').includes(`.${picked.name.split('.').pop()?.toLowerCase()}`)) {
+      setErr('Choose a PDF, DOCX, TXT, MD, PNG, JPG, or WEBP file.')
       setFile(null)
       return
     }
     setFile(picked)
+  }
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    handleFileSelection(event.currentTarget.files ?? [])
+    event.currentTarget.value = ''
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setIsDragging(false)
+    }
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+    handleFileSelection(event.dataTransfer.files)
   }
 
   const handleAdd = async () => {
@@ -91,63 +126,61 @@ export default function Resources() {
 
   return (
     <>
+      <div className="page page-resources">
+      <header className="page-heading">
       <div className="step-label">YOUR STUDY DESK</div>
-      <h2 className="section-title">Open Files</h2>
-      <p className="sub-text">
+      <h1 className="section-title">Your study materials</h1>
+      <p className="sub-text page-description">
         {supabaseConfigured
           ? 'Your notes and original files sync privately to your Supabase account.'
           : 'Local-only mode: notes save in this browser. Add Supabase settings to sync across devices.'}
       </p>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', marginBottom: '56px' }}>
+      <div className="material-grid">
         {materials.length === 0 && <p className="hint">Your desk is empty. Add a file below!</p>}
 
         {materials.map(m => (
-          <div key={m.id} className="resource-card" style={{
-            marginTop: 0,
-            opacity: m.marked ? 0.4 : 1,
-            transition: 'all 0.2s',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            borderTop: m.marked ? '1px solid var(--border)' : '3px solid var(--a2)'
-          }}>
+          <article key={m.id} className={`resource-card material-card${m.marked ? ' marked' : ''}`}>
             <div>
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div style={{ fontSize: '32px', lineHeight: 1 }}>📄</div>
-                <div className="row" style={{ gap: '8px' }}>
-                  <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Mark as done">
+              <div className="material-card-header">
+                <div className="material-icon"><FileText size={22} aria-hidden="true" /></div>
+                <div className="material-card-actions">
+                  <label className="mark-control" title="Mark as done">
                     <input
                       type="checkbox"
                       checked={m.marked}
                       onChange={() => toggleMarked(m.id)}
-                      style={{ width: '18px', height: '18px', accentColor: 'var(--a3)' }}
                     />
+                    <span className="sr-only">Mark {m.title} as done</span>
                   </label>
                   <button
+                    type="button"
+                    className="icon-button danger"
                     onClick={() => { void handleDelete(m) }}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--muted)' }}
-                    title="Trash this file"
+                    aria-label={`Delete ${m.title}`}
                   >
-                    🗑️
+                    <Trash2 size={17} aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              <h3 className="res-title" style={{ fontSize: '18px', textDecoration: m.marked ? 'line-through' : 'none' }}>
+              <h2 className="res-title">
                 {m.title}
-              </h3>
+              </h2>
               {m.fileName && <p className="hint">{m.fileName}</p>}
               <p className="snippet">{m.content.slice(0, 180)}{m.content.length > 180 ? '…' : ''}</p>
             </div>
 
-            <div className="stack" style={{ marginTop: '16px' }}>
-              <div className="row" style={{ gap: '8px', flexWrap: 'wrap' }}>
+            <div className="stack material-card-footer">
+              <div className="row material-actions">
                 <button type="button" className="btn-primary" onClick={() => navigate(`/study?materialId=${encodeURIComponent(m.id)}`)}>
+                  <BookOpen size={16} aria-hidden="true" />
                   Study this
                 </button>
                 {m.storagePath && (
                   <button type="button" className="btn-secondary" onClick={() => { void handleOpenFile(m.storagePath) }}>
+                    <ExternalLink size={16} aria-hidden="true" />
                     Open original file
                   </button>
                 )}
@@ -160,11 +193,12 @@ export default function Resources() {
                   aria-expanded={!!showProgress[m.id]}
                   onClick={() => toggleProgressView(m.id)}
                 >
+                  {showProgress[m.id] ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
                   {showProgress[m.id] ? 'Hide progress' : `Show progress (${m.progress.length})`}
                 </button>
               )}
               {showProgress[m.id] && (
-                <ul className="hint" style={{ margin: 0, paddingLeft: '20px' }}>
+                <ul className="hint progress-list">
                   {m.progress.map((entry, index) => (
                     <li key={`${entry.format}-${entry.date}-${index}`}>
                       {entry.format}: {entry.score} · {entry.date}
@@ -172,19 +206,65 @@ export default function Resources() {
                   ))}
                 </ul>
               )}
-            </div>
           </div>
+          </article>
         ))}
       </div>
 
-      <div className="step-label">ADD TO YOUR DESK</div>
-      <h2 className="section-title">Add a study material</h2>
-      <p className="sub-text">Upload a PDF, Word, TXT, MD, or Image file, or paste your notes.</p>
+      <header className="page-heading">
+        <div className="step-label">ADD TO YOUR DESK</div>
+        <h2 className="section-title">Add a study material</h2>
+        <p className="sub-text page-description">Upload a PDF, Word, TXT, MD, or image file, or paste your notes.</p>
+      </header>
 
       <div className="card stack">
-        <label className="hint" htmlFor="resource-file">Choose a study file (optional)</label>
-        <input id="resource-file" type="file" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" onChange={handleFileChange} />
-        {file && <p className="hint">Selected: {file.name}</p>}
+        <div
+          className={`upload-dropzone${isDragging ? ' is-dragging' : ''}${file ? ' has-file' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            id="resource-file"
+            className="upload-input"
+            type="file"
+            accept={ACCEPTED_FILE_TYPES}
+            onChange={handleFileChange}
+          />
+          {file ? (
+            <div className="upload-selected">
+              <span className="upload-icon"><FileText size={23} aria-hidden="true" /></span>
+              <span className="upload-file-details">
+                <strong>{file.name}</strong>
+                <small>{(file.size / (1024 * 1024)).toFixed(2)} MB · Ready to add</small>
+              </span>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Remove selected file"
+                onClick={() => { setFile(null); setErr('') }}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="upload-icon"><CloudUpload size={27} aria-hidden="true" /></span>
+              <strong className="upload-title">Drag and drop your study file</strong>
+              <span className="upload-hint">PDF, Word, text, Markdown, or image · Max 25 MB</span>
+              <div className="upload-actions">
+                <button type="button" className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
+                  <FolderOpen size={16} aria-hidden="true" /> Browse files
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
+                  <CloudUpload size={16} aria-hidden="true" /> Upload from Drive
+                </button>
+              </div>
+              <span className="upload-hint">Drive files must be available on this device or synced locally.</span>
+            </>
+          )}
+        </div>
 
         <label className="hint" htmlFor="resource-title">Title (optional)</label>
         <input
@@ -206,9 +286,11 @@ export default function Resources() {
         />
 
         <button type="button" className="btn-primary" disabled={uploading || (!file && !notes.trim())} onClick={handleAdd}>
+          {uploading ? null : <Check size={16} aria-hidden="true" />}
           {uploading ? 'Adding material…' : 'Add to my desk'}
         </button>
         {err && <p className="err" role="alert">{err}</p>}
+      </div>
       </div>
     </>
   )

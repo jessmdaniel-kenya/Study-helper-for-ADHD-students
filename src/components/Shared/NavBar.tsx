@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { Zap, House, BookOpen, Gamepad2, FolderOpen, UsersRound, BatteryMedium } from 'lucide-react'
 
 const LINKS = [
-  ['/', 'Home'],
-  ['/sprint', 'Sprint'],
-  ['/study', 'Study'],
-  ['/game', 'Game'],
-  ['/resources', 'Resources'],
-  ['/feed', 'Community'],
+  { to: '/', label: 'Home', Icon: House },
+  { to: '/study', label: 'Study', Icon: BookOpen },
+  { to: '/energy', label: 'Energy', Icon: BatteryMedium },
+  { to: '/game', label: 'Game', Icon: Gamepad2 },
+  { to: '/resources', label: 'Resources', Icon: FolderOpen },
+  { to: '/feed', label: 'Community', Icon: UsersRound },
 ] as const
 
 export default function NavBar() {
@@ -25,12 +26,14 @@ export default function NavBar() {
   return (
     <header className="top-nav">
       <NavLink to="/" className="brand">
-        ⚡ FlowState
+        <Zap size={20} aria-hidden="true" />
+        <span>FlowState</span>
       </NavLink>
       <ul className="nav-links">
-        {LINKS.map(([to, label]) => (
+        {LINKS.map(({ to, label, Icon }) => (
           <li key={to}>
             <NavLink to={to} end={to === '/'}>
+              <Icon size={16} aria-hidden="true" />
               {label}
             </NavLink>
           </li>

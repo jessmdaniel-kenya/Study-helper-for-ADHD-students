@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
 import { supabase } from '../lib/supabase'
+import { AlertTriangle, ArrowRight, BookOpen, KeyRound, Sprout, Zap } from 'lucide-react'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -48,38 +49,38 @@ export default function Home() {
   }
 
   return (
-    <div className="stack" style={{ gap: '24px' }}>
+    <div className="page stack">
       {/* Exam Alert Banner */}
-      <div className="card stack" style={{ background: 'linear-gradient(135deg, rgba(255,107,107,0.15), rgba(255,209,102,0.1))', border: '1px solid rgba(255,107,107,0.3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="badge" style={{ background: 'rgba(255,107,107,0.2)', color: '#ff6b6b', margin: 0 }}>🚨 CAT EXAM TOMORROW</div>
-          <span style={{ fontSize: '13px', color: 'var(--muted)' }}>FlowState Engine Active</span>
+      <section className="card stack home-feature">
+        <div className="home-feature-meta">
+          <div className="badge badge-alert"><AlertTriangle size={15} aria-hidden="true" /> CAT EXAM PREP</div>
+          <span className="hint">FlowState study space</span>
         </div>
-        <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '4px 0' }}>Time to Lock In Your Mastery</h2>
+        <h1 className="home-title">Build confidence, one study session at a time</h1>
         <p className="sub-text">Your study materials are parsed sentence-by-sentence into high-yield MCQs, flashcards, and free-response synthesis items.</p>
         
-        <div className="row" style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
+        <div className="row page-actions">
           <button className="btn-primary" onClick={() => navigate('/study')}>
-            Launch Study Engine ⚡
+            <Zap size={17} aria-hidden="true" /> Start studying
           </button>
           <button className="btn-secondary" onClick={() => navigate('/resources')}>
-            View Study Desk ({materials.length} Materials)
+            <BookOpen size={17} aria-hidden="true" /> Study desk <span className="count-pill">{materials.length}</span>
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Embedded Sign Up / Sign In Portal Card */}
-      <div className="card stack" style={{ border: '1px solid var(--a1)', background: 'rgba(0,215,255,0.02)' }}>
-        <div className="badge">STUDENT PORTAL 🔑</div>
-        <h3 style={{ fontSize: '20px', fontWeight: 700 }}>Sign Up or Sign In to Sync Notes</h3>
+      <section className="card stack">
+        <div className="badge"><KeyRound size={15} aria-hidden="true" /> STUDENT PORTAL</div>
+        <h2 className="section-title">Sign up or sign in to sync notes</h2>
         <p className="sub-text">Create an account right here to secure your study sessions and access them across devices.</p>
 
         {errorMsg && <div className="err" style={{ marginTop: '8px' }}>{errorMsg}</div>}
         {successMsg && <div style={{ color: 'var(--a3)', fontSize: '14px', marginTop: '8px' }}>{successMsg}</div>}
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+        <form onSubmit={handleLogin} className="form-stack">
           <div>
-            <label className="hint" style={{ display: 'block', marginBottom: '4px' }}>Email Address</label>
+            <label className="hint form-label">Email Address</label>
             <input 
               type="email" 
               className="field" 
@@ -92,7 +93,7 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="hint" style={{ display: 'block', marginBottom: '4px' }}>Password</label>
+            <label className="hint form-label">Password</label>
             <input 
               type="password" 
               className="field" 
@@ -104,36 +105,36 @@ export default function Home() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+          <div className="row form-actions">
             <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
-              {loading ? 'Processing...' : 'Sign In ⚡'}
+              {loading ? 'Processing...' : 'Sign in'}
             </button>
             <button type="button" className="btn-secondary" onClick={handleSignUp} disabled={loading} style={{ flex: 1 }}>
               Create Account (Sign Up)
             </button>
           </div>
         </form>
-      </div>
+      </section>
 
       {/* Quick Dashboard Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
-        <div className="card stack">
-          <div className="badge">📚 STUDY DESK</div>
-          <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Uploaded Resources</h3>
+      <div className="dashboard-grid">
+        <section className="card stack dashboard-card">
+          <div className="badge"><BookOpen size={15} aria-hidden="true" /> STUDY DESK</div>
+          <h2 className="card-title">Uploaded resources</h2>
           <p className="sub-text">Manage PDFs, Word notes, and text files ready for exhaustive parsing.</p>
-          <Link to="/resources" className="btn-secondary" style={{ textAlign: 'center', textDecoration: 'none', marginTop: 'auto' }}>
-            Open Study Desk →
+          <Link to="/resources" className="btn-secondary card-link">
+            Open study desk <ArrowRight size={16} aria-hidden="true" />
           </Link>
-        </div>
+        </section>
 
-        <div className="card stack">
-          <div className="badge">🌳 PROGRESS & FOCUS</div>
-          <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Active Recall Tree</h3>
+        <section className="card stack dashboard-card">
+          <div className="badge"><Sprout size={15} aria-hidden="true" /> PROGRESS & FOCUS</div>
+          <h2 className="card-title">Active recall</h2>
           <p className="sub-text">Build experience points and grow your seedling into a mighty tree as you test your knowledge.</p>
-          <Link to="/study" className="btn-secondary" style={{ textAlign: 'center', textDecoration: 'none', marginTop: 'auto' }}>
-            Start Session →
+          <Link to="/study" className="btn-secondary card-link">
+            Start a session <ArrowRight size={16} aria-hidden="true" />
           </Link>
-        </div>
+        </section>
       </div>
     </div>
   )

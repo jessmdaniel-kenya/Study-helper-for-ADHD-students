@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
 import type { EnergyLevel } from '../stores/useAppStore'
+import { Battery, BatteryFull, BatteryLow, Zap } from 'lucide-react'
 
 export default function EnergyCheckin() {
   const navigate = useNavigate()
@@ -13,39 +14,39 @@ export default function EnergyCheckin() {
   }
 
   return (
-    <div className="card stack" style={{ maxWidth: '500px', margin: '8vh auto', textAlign: 'center' }}>
-      <div className="badge">STATE CALIBRATION ⚡</div>
+    <section className="card stack energy-panel">
+      <div className="badge"><Zap size={15} aria-hidden="true" /> STATE CALIBRATION</div>
       <h2 className="section-title">How is your energy right now?</h2>
       <p className="sub-text">We'll adjust your study pace and question density to match your current cognitive capacity.</p>
 
-      <div className="stack" style={{ gap: '12px', marginTop: '20px' }}>
+      <div className="energy-options">
         <button 
           type="button"
-          className="btn-secondary" 
-          style={{ padding: '16px', borderColor: energyLevel === 'Low' ? 'var(--a1)' : 'var(--border)', width: '100%', textAlign: 'left' }}
+          className={`energy-choice${energyLevel === 'Low' ? ' selected' : ''}`}
           onClick={() => handleSelect('Low')}
         >
-          🪫 <b>Low Energy</b> (Gentle flashcards & bite-sized review)
+          <BatteryLow size={22} aria-hidden="true" />
+          <span><b>Low energy</b><small>Gentle flashcards and bite-sized review</small></span>
         </button>
 
         <button 
           type="button"
-          className="btn-secondary" 
-          style={{ padding: '16px', borderColor: energyLevel === 'Medium' ? 'var(--a1)' : 'var(--border)', width: '100%', textAlign: 'left' }}
+          className={`energy-choice${energyLevel === 'Medium' ? ' selected' : ''}`}
           onClick={() => handleSelect('Medium')}
         >
-          🔋 <b>Balanced</b> (Standard mix of MCQs and recall)
+          <Battery size={22} aria-hidden="true" />
+          <span><b>Balanced</b><small>A standard mix of multiple choice and recall</small></span>
         </button>
 
         <button 
           type="button"
-          className="btn-secondary" 
-          style={{ padding: '16px', borderColor: energyLevel === 'Wired' ? 'var(--a1)' : 'var(--border)', width: '100%', textAlign: 'left' }}
+          className={`energy-choice${energyLevel === 'Wired' ? ' selected' : ''}`}
           onClick={() => handleSelect('Wired')}
         >
-          ⚡ <b>Wired / High Focus</b> (Exhaustive free-response synthesis)
+          <BatteryFull size={22} aria-hidden="true" />
+          <span><b>High focus</b><small>More challenging free-response practice</small></span>
         </button>
       </div>
-    </div>
+    </section>
   )
 }

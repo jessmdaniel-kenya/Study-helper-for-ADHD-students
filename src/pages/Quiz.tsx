@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { Gift } from 'lucide-react'
 import { useAppStore } from '../stores/useAppStore'
 import { createMaterial } from '../lib/materials'
 import { countCompletion, extractText, gradeAnswer, makeQuiz } from '../lib/quizPageApi'
@@ -284,7 +285,7 @@ export default function Quiz() {
 
       {reward && (
         <div className="reward" role="dialog" aria-label="Surprise unlocked">
-          <div className="big">{reward.emoji ?? '🎁'}</div>
+          <div className="big"><Gift size={48} aria-hidden="true" /></div>
           <h3>Surprise unlocked{reward.name ? `: ${reward.name}` : '!'}</h3>
           <button type="button" className="btn-primary" onClick={() => setReward(null)}>Collect</button>
         </div>

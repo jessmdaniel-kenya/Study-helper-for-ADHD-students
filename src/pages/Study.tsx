@@ -3,9 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
 import { gradeAnswer, makeQuiz } from '../lib/quizApi'
-import type { QuizQuestion, QuizType } from '../lib/quizApi'
+import { recordStudyCompletion } from '../lib/gameProgress'
+import type { QuizQuestion, QuizProvider, QuizProviderConfig, QuizType } from '../lib/quizApi'
+import { BookOpen, Check, FileText, KeyRound, Leaf, Sprout, TreePine } from 'lucide-react'
 
-const TREE_STAGES = ['🌱 Seedling', '🪴 Potted Sprout', '🌿 Growing Fern', '🌳 Mighty Tree']
+const TREE_STAGES = [
+  { label: 'Seedling', Icon: Sprout },
+  { label: 'Growing sprout', Icon: Sprout },
+  { label: 'Growing fern', Icon: Leaf },
+  { label: 'Mighty tree', Icon: TreePine },
+]
 const COUNT = 10 // raise for longer sessions; generating takes longer
 
 type Reveal = { ok: boolean; verdict: string; feedback?: string; best: string }
@@ -27,6 +34,9 @@ export default function Study() {
 
   const [phase, setPhase] = useState<'setup' | 'studying'>('setup')
   const [qTypes, setQTypes] = useState({ flashcard: true, mcq: true, written: true })
+  const [providerId, setProviderId] = useState<'local' | QuizProvider>('local')
+  const [providerApiKey, setProviderApiKey] = useState('')
+  const [providerModel, setProviderModel] = useState('deepseek-chat')
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [source, setSource] = useState('')
   const [round, setRound] = useState(1)
@@ -43,10 +53,16 @@ export default function Study() {
   const [total, setTotal] = useState(0)
   const [treeExp, setTreeExp] = useState(0)
   const review = useRef<QuizQuestion[]>([]) // questions that come back once more
+  const completionRecorded = useRef(false)
+
+  function getProviderConfig(): QuizProviderConfig | undefined {
+    if (providerId === 'local') return undefined
+    return { id: providerId, apiKey: providerApiKey.trim(), model: providerModel.trim() }
+  }
 
   if (!activeMaterial) {
     return (
-      <div className="card stack" style={{ textAlign: 'center', marginTop: '10vh' }}>
+      <div className="card stack empty-state">
         <h2 className="section-title">No Material Found</h2>
         <p className="sub-text">Go to your Study Desk to pick or upload a file first.</p>
         <button className="btn-primary" onClick={() => navigate('/resources')}>Go to Study Desk</button>
@@ -69,10 +85,18 @@ export default function Study() {
       setErr('This material has too little text to make questions from. Add more notes or a fuller file.')
       return
     }
+    if (providerId !== 'local' && !providerApiKey.trim()) {
+      setErr('Enter your provider API key, or choose Local to make questions without an AI provider.')
+      return
+    }
+    if (providerId !== 'local' && !providerModel.trim()) {
+      setErr('Enter a model name for the selected provider.')
+      return
+    }
     setBusy(true)
     setErr('')
     try {
-      const r = await makeQuiz(activeMaterial.content, COUNT, types)
+      const r = await makeQuiz(activeMaterial.content, COUNT, types, getProviderConfig())
       setNote(r.truncated ? 'This is a long document, so the questions come from the first part of it.' : '')
       setSource(activeMaterial.content)
       setQuestions(r.questions)
@@ -82,6 +106,7 @@ export default function Study() {
       setCurrentIndex(0)
       setFirstTry(0)
       setTreeExp(0)
+      completionRecorded.current = false
       clearAnswer()
       setPhase('studying')
     } catch (x) {
@@ -92,6 +117,7 @@ export default function Study() {
 
   const q = questions[currentIndex]
   const treeLevel = Math.min(Math.floor(treeExp / 4), TREE_STAGES.length - 1)
+  const TreeIcon = TREE_STAGES[treeLevel].Icon
   const isComplete = phase === 'studying' && currentIndex >= questions.length
 
   // Every answer grows the tree. Misses and guesses come back once.
@@ -112,7 +138,7 @@ export default function Study() {
     } else {
       setChecking(true)
       try {
-        const g = await gradeAnswer(source, q, writtenAnswer)
+        const g = await gradeAnswer(source, q, writtenAnswer, getProviderConfig())
         r = { ok: g.verdict === 'Got it', verdict: g.verdict, feedback: g.feedback, best: g.best_fit || q.answer }
       } catch {
         r = { ok: false, verdict: 'Not yet', feedback: 'We couldn’t grade that one. Compare it with the best answer below.', best: q.answer }
@@ -145,6 +171,15 @@ export default function Study() {
       setCurrentIndex(0)
       return
     }
+    if (!completionRecorded.current) {
+      completionRecorded.current = true
+      try {
+        const { unlockedItem } = recordStudyCompletion()
+        if (unlockedItem) setNote(`A new Workbench part was unlocked: ${unlockedItem.name}.`)
+      } catch (error) {
+        setNote(error instanceof Error ? error.message : 'Your session finished, but game progress could not be saved.')
+      }
+    }
     setCurrentIndex(questions.length)
   }
 
@@ -160,7 +195,7 @@ export default function Study() {
     const chips: [QuizType, string][] = [['flashcard', 'Flashcards'], ['mcq', 'Multiple Choice'], ['written', 'Free Response']]
     return (
       <div className="card stack">
-        <div className="badge">CAT PREP ENGINE 🚨</div>
+        <div className="badge"><BookOpen size={15} aria-hidden="true" /> STUDY SESSION</div>
         <h2 className="section-title">Ready for Your Exam</h2>
 
         <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '8px' }}>
@@ -173,11 +208,61 @@ export default function Study() {
           >
             {materials.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.title} {m.fileName ? `(📎 ${m.fileName})` : ''}
+                {m.title} {m.fileName ? `(${m.fileName})` : ''}
               </option>
             ))}
           </select>
         </div>
+
+        <section className="provider-settings" aria-labelledby="provider-settings-title">
+          <div className="badge"><KeyRound size={15} aria-hidden="true" /> QUESTION ENGINE</div>
+          <label className="provider-field">
+            <span id="provider-settings-title">Choose how questions are made</span>
+            <select
+              className="field"
+              value={providerId}
+              onChange={(event) => {
+                const next = event.target.value
+                if (next !== 'local' && next !== 'deepseek' && next !== 'nvidia') return
+                setProviderId(next)
+                setProviderApiKey('')
+                setProviderModel(next === 'nvidia' ? 'meta/llama-3.3-70b-instruct' : 'deepseek-chat')
+              }}
+            >
+              <option value="local">Local — no external AI or API key</option>
+              <option value="deepseek">DeepSeek — use my API key</option>
+              <option value="nvidia">NVIDIA NIM — use my API key</option>
+            </select>
+          </label>
+          {providerId !== 'local' && (
+            <>
+              <label className="provider-field">
+                <span>{providerId === 'deepseek' ? 'DeepSeek API key' : 'NVIDIA API key'}</span>
+                <input
+                  className="field"
+                  type="password"
+                  autoComplete="new-password"
+                  value={providerApiKey}
+                  onChange={(event) => setProviderApiKey(event.target.value)}
+                  placeholder="Enter your key for this session"
+                />
+              </label>
+              <label className="provider-field">
+                <span>Model ID</span>
+                <input
+                  className="field"
+                  value={providerModel}
+                  onChange={(event) => setProviderModel(event.target.value)}
+                  placeholder={providerId === 'deepseek' ? 'deepseek-chat' : 'meta/llama-3.3-70b-instruct'}
+                />
+              </label>
+              <p className="provider-note">
+                Your key stays in this page’s memory and is not saved. Study notes and written answers are sent
+                through this app’s quiz endpoint to the selected provider. Use only a deployment you trust.
+              </p>
+            </>
+          )}
+        </section>
 
         <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
           <div className="badge">SESSION FORMATS</div>
@@ -198,7 +283,7 @@ export default function Study() {
         </div>
 
         <button className="btn-primary" style={{ marginTop: '24px' }} disabled={busy} onClick={handleStartStudy}>
-          {busy ? 'Reading your material…' : `Make ${COUNT} questions & start ⚡`}
+          {busy ? 'Reading your material…' : `Make ${COUNT} questions and start`}
         </button>
         {err && <p className="err" role="alert">{err}</p>}
       </div>
@@ -208,16 +293,16 @@ export default function Study() {
   if (isComplete) {
     const left = review.current.length
     return (
-      <div className="card stack" style={{ textAlign: 'center', marginTop: '5vh' }}>
-        <div style={{ fontSize: '64px', margin: '0 auto 16px', width: '120px', height: '120px', display: 'grid', placeItems: 'center', background: 'rgba(6,214,160,0.1)', borderRadius: '50%' }}>
-          {TREE_STAGES[treeLevel].split(' ')[0]}
+      <div className="card stack completion-card">
+        <div className="growth-icon">
+          <TreeIcon size={48} aria-hidden="true" />
         </div>
         <h2 className="section-title">Session Complete!</h2>
         <p className="sub-text">
-          {firstTry} of {total} right on the first try, and your tree earned {treeExp} growth points.
+          {firstTry} of {total} right on the first try, and your progress earned {treeExp} growth points.
           {left > 0 ? ` ${left} still worth another look. That’s normal, and they’re the ones that stick.` : ' Everything landed.'}
         </p>
-        <div className="row" style={{ justifyContent: 'center', marginTop: '20px' }}>
+        <div className="row page-actions">
           {left > 0 && <button className="btn-primary" onClick={again}>Try the tricky ones again</button>}
           <button className="btn-secondary" onClick={() => { review.current = []; setPhase('setup') }}>Study Again</button>
           <button className="btn-secondary" onClick={() => navigate('/resources')}>Back to Study Desk</button>
@@ -232,13 +317,13 @@ export default function Study() {
     <>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div className="step-label">{round === 1 ? 'QUESTION' : 'REVIEW'} {currentIndex + 1} OF {questions.length}</div>
-        <div className="badge" style={{ margin: 0 }}>{TREE_STAGES[treeLevel]} (Exp: {treeExp})</div>
+        <div className="badge growth-badge"><TreeIcon size={16} aria-hidden="true" /> {TREE_STAGES[treeLevel].label} · {treeExp} points</div>
       </div>
       <div className="qbar"><div className="qfill" style={{ width: `${(currentIndex / questions.length) * 100}%` }} /></div>
       {note && <p className="hint">{note}</p>}
 
       <div className="card stack">
-        <h3 style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.4 }}>{q.prompt}</h3>
+        <h2 className="question-title">{q.prompt}</h2>
 
         {!reveal && q.type !== 'flashcard' && (
           <div className="chips left" role="group" aria-label="How sure are you?">
@@ -265,7 +350,7 @@ export default function Study() {
               )
             })}
             {!reveal && (
-              <button className="btn-primary" disabled={!selectedOption} onClick={submit}>Submit Answer</button>
+              <button className="btn-primary" disabled={!selectedOption} onClick={submit}><Check size={16} aria-hidden="true" /> Submit answer</button>
             )}
           </div>
         )}
@@ -282,20 +367,20 @@ export default function Study() {
             />
             {!reveal && (
               <button className="btn-primary" disabled={!writtenAnswer.trim() || checking} onClick={submit}>
-                {checking ? 'Checking…' : 'Check my answer'}
+                {checking ? 'Checking…' : <><Check size={16} aria-hidden="true" /> Check my answer</>}
               </button>
             )}
           </>
         )}
 
         {q.type === 'flashcard' && !reveal && (
-          <button className="btn-primary" onClick={showCard}>Reveal Answer</button>
+          <button className="btn-primary" onClick={showCard}><FileText size={16} aria-hidden="true" /> Reveal answer</button>
         )}
 
         {reveal && q.type === 'flashcard' && (
           <div className="reveal ok">
             <p className="hint">Answer</p>
-            <p style={{ fontSize: '18px', fontWeight: 500 }}>{q.answer}</p>
+            <p className="answer-text">{q.answer}</p>
             <p>{q.explanation}</p>
             <p className="hint">From your notes: “{q.quote}”</p>
             <div className="row">
