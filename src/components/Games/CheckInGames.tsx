@@ -34,6 +34,7 @@ import ParticleButton from '@/components/kokonutui/particle-button'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { completeGame, getCheckins, logMood, summarize, type CheckinState, type GameId, type Mood } from '@/lib/checkins'
+import { recordCheckinGame, type GameProgress } from '@/lib/gameProgress'
 import { useCalmMotion } from '@/lib/preferences'
 import { cn } from '@/lib/utils'
 import { useAppStore, type EnergyLevel } from '@/stores/useAppStore'
@@ -544,7 +545,12 @@ function GameShell({ title, onBack, children }: { title: string; onBack: () => v
   )
 }
 
-export default function CheckInGames() {
+interface CheckInGamesProps {
+  /** Called when a finished check-in earns the daily Workbench point. */
+  onWorkbenchProgress?: (progress: GameProgress, message: string) => void
+}
+
+export default function CheckInGames({ onWorkbenchProgress }: CheckInGamesProps = {}) {
   const calm = useCalmMotion()
   const [active, setActive] = useState<GameId | null>(null)
   const [checkins, setCheckins] = useState(getCheckins)
@@ -553,15 +559,35 @@ export default function CheckInGames() {
   const lastMood = checkins.moods.at(-1)
   const lastMoodInfo = lastMood ? MOODS.find(({ id }) => id === lastMood.mood) : undefined
 
+  // The first finished check-in each day also earns a Workbench point.
+  const rewardWorkbench = useMemo(
+    () => () => {
+      try {
+        const result = recordCheckinGame()
+        if (!result.awarded) return
+        onWorkbenchProgress?.(
+          result.progress,
+          result.unlockedItem
+            ? `Daily check-in bonus: +1 Workbench point. New part unlocked: ${result.unlockedItem.name}!`
+            : 'Daily check-in bonus: +1 Workbench point.',
+        )
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : 'Could not save Workbench progress.')
+      }
+    },
+    [onWorkbenchProgress],
+  )
+
   const finish = useMemo(
     () => (game: GameId) => {
       try {
         setCheckins(completeGame(game))
+        rewardWorkbench()
       } catch (error) {
         setNotice(error instanceof Error ? error.message : 'Could not save this check-in.')
       }
     },
-    [],
+    [rewardWorkbench],
   )
   const onDone = useMemo(() => (active ? () => finish(active) : () => {}), [active, finish])
   const exit = () => setActive(null)
@@ -596,7 +622,7 @@ export default function CheckInGames() {
             transition={{ duration: 0.25, ease: EASE }}
           >
             <GameShell title={game.title} onBack={exit}>
-              {game.id === 'weather' && <MoodWeather history={checkins} onLogged={setCheckins} calm={calm} />}
+              {game.id === 'weather' && <MoodWeather history={checkins} onLogged={(state) => { setCheckins(state); rewardWorkbench() }} calm={calm} />}
               {game.id === 'breathe' && <Breathe onDone={onDone} onExit={exit} calm={calm} />}
               {game.id === 'odd-one' && <OddOneOut onDone={onDone} onExit={exit} calm={calm} />}
               {game.id === 'pairs' && <Pairs onDone={onDone} onExit={exit} calm={calm} />}

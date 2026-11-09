@@ -2140,6 +2140,162 @@ h2.section-title::after {
   justify-self: start;
 }
 
+.blueprint-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--card-active);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.blueprint-card.ready .blueprint-count {
+  color: var(--a3);
+  border-color: color-mix(in srgb, var(--a3) 45%, var(--border));
+}
+
+.blueprint-meter {
+  height: 5px;
+  overflow: hidden;
+  background: var(--card-active);
+  border-radius: 999px;
+}
+
+.blueprint-meter span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--a1), var(--a3));
+  border-radius: inherit;
+  transition: width 400ms ease;
+}
+
+.recipe-state {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.recipe-list li.missing {
+  opacity: 0.75;
+}
+
+.recipe-list li.missing .recipe-state {
+  color: var(--a4);
+}
+
+.blueprint-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.blueprint-card.ready:not(.built) .blueprint-status {
+  color: var(--a3);
+  font-weight: 600;
+}
+
+.blueprint-card > button:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.blueprint-description {
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.blueprint-built {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 7px;
+  padding: 8px 14px;
+  color: var(--a3);
+  font-size: 14px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--a3) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--a3) 40%, var(--border));
+  border-radius: 11px;
+}
+
+.blueprint-card.built {
+  border-color: color-mix(in srgb, var(--a3) 40%, var(--border));
+}
+
+/* Next-part preview on the Workbench progress card */
+.next-part {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.next-part-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  color: var(--a1);
+  background: color-mix(in srgb, var(--a1) 12%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--a1) 45%, var(--border));
+  border-radius: 14px;
+}
+
+/* Built gadgets */
+.gadget-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+
+.gadget-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--a3) 12%, transparent), transparent 70%), var(--card-active);
+  border: 1px solid color-mix(in srgb, var(--a3) 35%, var(--border));
+  border-radius: 14px;
+  animation: gadget-arrive 420ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.gadget-card h3 {
+  font-size: 15px;
+}
+
+.gadget-card p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.gadget-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--a3), var(--a2));
+  border-radius: 13px;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--a3) 30%, transparent);
+}
+
+@keyframes gadget-arrive {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+
+.no-game-animations .gadget-card {
+  animation: none;
+}
+
 .game-preferences {
   gap: 12px;
 }
