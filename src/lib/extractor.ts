@@ -6,7 +6,7 @@ type ExtractProgress = (message: string) => void
 
 async function extractPdf(file: File, onProgress?: ExtractProgress) {
   const pdfjs = await import('pdfjs-dist')
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+  pdfjs.GlobalWorkerOptions.workerSrc = `${pdfWorkerUrl}?v=2`
   const loadingTask = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
   const pdf = await loadingTask.promise
   const pages: string[] = []

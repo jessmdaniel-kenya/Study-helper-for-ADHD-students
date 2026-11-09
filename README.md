@@ -13,38 +13,39 @@ FlowState turns a student's own notes into short, low-pressure study sessions. S
 | Frontend | React 19, Vite, TypeScript, React Router (hash routing), Zustand |
 | Styling | Tailwind CSS v4 (no Preflight), shadcn/ui, [Kokonut UI](https://kokonutui.com), Motion |
 | Auth and data | Supabase: anonymous and email/password auth, Postgres, Storage |
-| API | Vercel-style functions in `api/` (Node) |
-| AI | Private FastAPI service in `ai_service/` for NVIDIA NIM, OpenAI, Gemini, Anthropic or Ollama |
+| API and AI | FastAPI in `ai_service/`; NVIDIA NIM calls, Supabase auth/quota, and safety classification all run in Python |
 | File parsing | pdf.js, mammoth (DOCX) and Tesseract.js (OCR), all running in the browser |
 
 ## Run locally
 
-1. Copy `.env.example` to `.env.local`. Set the Supabase URL and anon key, then add only the provider API keys you intend to use. Keep all model keys server-only and never add a `VITE_` prefix to them.
+1. Copy `.env.example` to `.env.local`. Set the Supabase URL and anon key, then add `NVIDIA_API_KEY`. Keep the API key server-only and never add a `VITE_` prefix to it.
 2. In Supabase, enable anonymous sign-ins and email/password signup with email confirmation. Run `supabase/schema.sql` for a new project. For an existing project, apply `supabase/migrations/02_ai_material_overviews.sql`.
-3. Install the frontend dependencies with `npm install`, then start the app with `npm run dev`.
+3. Install backend dependencies with `python -m pip install -r requirements.txt`.
+4. In one terminal, start the Python API with `python -m uvicorn ai_service.main:app --reload --host 127.0.0.1 --port 8000`.
+5. In a second terminal, install frontend dependencies with `npm install`, then start Vite with `npm run dev`. Vite forwards `/api` requests to the Python API.
 
-That is enough to run the app with **NVIDIA only**: set `NVIDIA_API_KEY` and leave `PYTHON_AI_SERVICE_URL` unset. To use OpenAI, Gemini, Anthropic or Ollama, also run the Python service:
-
-4. Generate a service secret with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and set it as `PYTHON_AI_SERVICE_TOKEN`. Set `PYTHON_AI_SERVICE_URL=http://127.0.0.1:8000`, including the `http://`.
-5. Use Python 3.10 or newer and install the service dependencies with `python -m pip install -r requirements-ai.txt`.
-6. In a second terminal, start the service with `python -m uvicorn ai_service.main:app --host 127.0.0.1 --port 8000`. Restart `npm run dev` after changing `.env.local`, because the server reads it only at startup.
-
-The app's authenticated Node endpoint checks the Supabase session and daily AI allowance before forwarding a request to the Python service. The Python service keeps provider keys server-side and supports NVIDIA NIM, OpenAI, Google Gemini, Anthropic and Ollama. Configure each provider with its key and model in `.env.local`. The model values in `.env.example` are defaults; change them to models enabled for your accounts. Ollama must be installed and running at `OLLAMA_BASE_URL` with the selected model available. Guest quotas are tied to the anonymous Supabase session and may reset if that session is lost.
+The Python API uses NVIDIA NIM for summaries, quizzes, and grading. It checks the Supabase session and daily AI allowance before sending requests to NVIDIA. Guest quotas are tied to the anonymous Supabase session and may reset if that session is lost.
 
 ### Environment variables
 
 | Variable | Where | Purpose |
 |---|---|---|
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Browser | Supabase project (the anon key is public; protect data with RLS) |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | App server | Session checks and the daily AI allowance |
-| `NVIDIA_API_KEY`, `NVIDIA_MODEL` | App server or Python service | NVIDIA NIM (`AI_API_KEY` and `AI_MODEL` are accepted aliases) |
-| `PYTHON_AI_SERVICE_URL` | App server | Full URL of the Python service: `http://127.0.0.1:8000` locally, `https://…` in production |
-| `PYTHON_AI_SERVICE_TOKEN` | App server **and** Python service | Shared secret between the two |
-| `OPENAI_*`, `GEMINI_*`, `ANTHROPIC_*`, `OLLAMA_*` | Python service | Optional providers; see `.env.example` |
+| `VITE_API_BASE_URL` | Browser build | Optional separate Python API origin; leave blank for Docker Compose's `/api` proxy or Vite's development proxy |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Python API | Session checks and the daily AI allowance |
+| `NVIDIA_API_KEY`, `NVIDIA_MODEL` | Python API | NVIDIA NIM (`AI_API_KEY` and `AI_MODEL` are accepted aliases) |
+| `FRONTEND_ORIGINS` | Python API | Comma-separated origins allowed when hosting the browser UI separately |
+| `API_PROXY_TARGET` | Vite dev server | Python API origin for the local `/api` proxy; defaults to `http://127.0.0.1:8000` |
 
-### Production
+### Docker
 
-Deploy the Python service on a private HTTPS-capable host. Set `PYTHON_AI_SERVICE_URL` and the same strong `PYTHON_AI_SERVICE_TOKEN` on both the app server and the Python service, and set provider keys only in the Python service environment. Do not expose the Python service or provider keys to the browser. If `PYTHON_AI_SERVICE_URL` is unset, the Node endpoint calls NVIDIA directly and the other providers are unavailable.
+Set `VITE_SUPABASE_URL` (or `SUPABASE_URL`), `VITE_SUPABASE_ANON_KEY` (or `SUPABASE_ANON_KEY`), and `NVIDIA_API_KEY` in the project `.env` file. Then start both containers with:
+
+```sh
+docker compose up --build
+```
+
+Open <http://localhost:8080>. Docker Compose builds and runs the Python API and the Nginx frontend, waits for the API health check, and routes frontend `/api` requests to the backend. Material overviews are processed in 20,000-character sections, up to 1,000,000 characters total. The frontend port can be changed with `FRONTEND_PORT`. The NVIDIA key is passed only to the backend container.
 
 ## App flow and pages
 
@@ -119,15 +120,13 @@ Review and anonymize data before using it for fine-tuning. Fine-tuning data form
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start the Vite dev server, including the local `/api/quiz` endpoint |
-| `npm run build` | Type-check and build for production |
-| `npm run lint` | Lint with oxlint |
-| `node --test tests/quiz-core.test.js` | Backend tests |
-| `python -m unittest discover -s tests\python` | Python service tests |
+| `npm run dev` | Start the frontend; `/api` is proxied to FastAPI |
+| `npm run build` | Type-check and build the frontend into `dist/` |
+| `npm run lint` | Lint the frontend with oxlint |
+| `python -m uvicorn ai_service.main:app --reload --port 8000` | Start the Python API for local development |
+| `python -m ai_service.prepare_dataset --help` | Show local training-data preparation options |
 
 ## Troubleshooting
 
-- **"PYTHON_AI_SERVICE_URL must be a valid HTTP(S) URL":** the value is missing its scheme. Use `http://127.0.0.1:8000`, not `127.0.0.1:8000`. To use NVIDIA only, remove both `PYTHON_AI_SERVICE_URL` and `PYTHON_AI_SERVICE_TOKEN`. Restart `npm run dev` after editing `.env.local`.
-- **"Use HTTPS for PYTHON_AI_SERVICE_URL outside local development":** plain `http://` is allowed only for `localhost`, `127.0.0.1` and `[::1]`.
-- **"This provider requires the Python AI service":** start the Python service (step 6) or switch to NVIDIA.
+- **NVIDIA API key errors:** set `NVIDIA_API_KEY` in `.env.local` and restart `npm run dev`.
 - **Theme or font changes don't appear:** preferences are stored per browser in `localStorage`; use **Reset** in the Display menu.

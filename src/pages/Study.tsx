@@ -2,10 +2,10 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
-import { gradeAnswer, makeQuiz, questionCountForMaterial, QUIZ_PROVIDERS } from '../lib/quizApi'
+import { gradeAnswer, makeQuiz, questionCountForMaterial } from '../lib/quizApi'
 import { recordStudyCompletion } from '../lib/gameProgress'
-import type { QuizQuestion, QuizProvider, QuizProviderConfig, QuizType } from '../lib/quizApi'
-import { BookOpen, Check, FileText, KeyRound, Leaf, Sprout, TreePine } from 'lucide-react'
+import type { QuizQuestion, QuizType } from '../lib/quizApi'
+import { BookOpen, Check, FileText, Leaf, Sprout, TreePine } from 'lucide-react'
 
 const TREE_STAGES = [
   { label: 'Seedling', Icon: Sprout },
@@ -26,7 +26,6 @@ export default function Study() {
 
   const [phase, setPhase] = useState<'setup' | 'studying'>('setup')
   const [qTypes, setQTypes] = useState({ flashcard: true, mcq: true, written: true })
-  const [providerId, setProviderId] = useState<'local' | QuizProvider>('nvidia')
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [source, setSource] = useState('')
   const [round, setRound] = useState(1)
@@ -46,11 +45,6 @@ export default function Study() {
   const review = useRef<QuizQuestion[]>([]) // questions that come back once more
   const completionRecorded = useRef(false)
   const seenQuotes = useRef(new Set<string>())
-
-  function getProviderConfig(): QuizProviderConfig | undefined {
-    if (providerId === 'local') return undefined
-    return { id: providerId }
-  }
 
   if (!activeMaterial) {
     return (
@@ -86,7 +80,6 @@ export default function Study() {
       const r = await makeQuiz(
         activeMaterial.content,
         types,
-        getProviderConfig(),
         (completed, total) => setGenerationProgress({ completed, total }),
         [...seenQuotes.current],
       )
@@ -135,7 +128,7 @@ export default function Study() {
     } else {
       setChecking(true)
       try {
-        const g = await gradeAnswer(source, q, writtenAnswer, getProviderConfig())
+        const g = await gradeAnswer(source, q, writtenAnswer)
         r = { ok: g.verdict === 'Got it', verdict: g.verdict, feedback: g.feedback, best: g.best_fit || q.answer }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not grade this answer.'
@@ -217,34 +210,6 @@ export default function Study() {
             ))}
           </select>
         </div>
-
-        <section className="provider-settings" aria-labelledby="provider-settings-title">
-          <div className="badge"><KeyRound size={15} aria-hidden="true" /> QUESTION ENGINE</div>
-          <label className="provider-field">
-            <span id="provider-settings-title">Choose how questions are made</span>
-            <select
-              className="field"
-              value={providerId}
-              onChange={(event) => {
-                const next = event.target.value
-                if (next === 'local') {
-                  setProviderId(next)
-                  return
-                }
-                const provider = QUIZ_PROVIDERS.find((option) => option.id === next)
-                if (provider) setProviderId(provider.id)
-              }}
-            >
-              <option value="local">Local — no external AI or API key</option>
-              {QUIZ_PROVIDERS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-            </select>
-          </label>
-          {providerId !== 'local' && (
-            <p className="provider-note">
-              Your selected AI provider processes study requests through the app’s server; provider keys are never sent to your browser. You can use AI as a guest; daily limits apply.
-            </p>
-          )}
-        </section>
 
         <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
           <div className="badge">SESSION FORMATS</div>

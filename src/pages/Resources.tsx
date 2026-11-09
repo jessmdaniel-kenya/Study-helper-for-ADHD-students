@@ -6,8 +6,7 @@ import { useAppStore } from '../stores/useAppStore'
 import { supabaseConfigured } from '../lib/supabase'
 import { createMaterial, listMaterials, removeMaterial, saveMaterialOverview, signedFileUrl } from '../lib/materials'
 import { extractText } from '../lib/extractor'
-import { summarizeMaterial, QUIZ_PROVIDERS } from '../lib/quizApi'
-import type { QuizProvider } from '../lib/quizApi'
+import { summarizeMaterial } from '../lib/quizApi'
 import type { MaterialOverview } from '../stores/useAppStore'
 import { BookOpen, Check, ChevronDown, ChevronUp, CloudUpload, ExternalLink, FileText, FolderOpen, Trash2, X } from 'lucide-react'
 
@@ -25,7 +24,6 @@ export default function Resources() {
   const [fileProgress, setFileProgress] = useState('')
   const [err, setErr] = useState('')
   const [overviewBusyId, setOverviewBusyId] = useState<string | null>(null)
-  const [overviewProvider, setOverviewProvider] = useState<QuizProvider>('nvidia')
   const [overviewError, setOverviewError] = useState<{ id: string; message: string } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -116,7 +114,7 @@ export default function Resources() {
     setOverviewBusyId(material.id)
     setOverviewError(null)
     try {
-      const overview: MaterialOverview = await summarizeMaterial(material.content, { id: overviewProvider })
+      const overview: MaterialOverview = await summarizeMaterial(material.content)
       await saveMaterialOverview(material.id, overview)
       updateMaterial(material.id, { overview })
     } catch (error) {
@@ -160,18 +158,8 @@ export default function Resources() {
           ? 'Your notes and original files sync privately to your Supabase account.'
           : 'Local-only mode: notes save in this browser. Add Supabase settings to sync across devices.'}
       </p>
-      <p className="hint page-description">Summaries and AI study sets are created only when requested. Extracted text is sent to your selected AI provider through the server; the original file is not sent.</p>
+      <p className="hint page-description">Summaries and AI study sets are created only when requested. Extracted text is sent securely through the app server; the original file is not sent.</p>
       </header>
-
-      <label className="provider-field">
-        <span>AI provider for summaries</span>
-        <select className="field" value={overviewProvider} onChange={(event) => {
-          const provider = QUIZ_PROVIDERS.find((option) => option.id === event.target.value)
-          if (provider) setOverviewProvider(provider.id)
-        }}>
-          {QUIZ_PROVIDERS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-        </select>
-      </label>
 
       <div className="material-grid">
         {materials.length === 0 && <p className="hint">Your desk is empty. Add a file below!</p>}

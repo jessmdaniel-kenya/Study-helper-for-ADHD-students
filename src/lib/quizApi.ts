@@ -14,15 +14,6 @@ export type QuizQuestion = {
 
 export type Grade = { verdict: string; feedback: string; best_fit: string }
 
-export type QuizProvider = 'nvidia' | 'openai' | 'gemini' | 'anthropic' | 'ollama'
-export type QuizProviderConfig = { id: QuizProvider }
-export const QUIZ_PROVIDERS: { id: QuizProvider; label: string }[] = [
-  { id: 'nvidia', label: 'NVIDIA NIM' },
-  { id: 'openai', label: 'OpenAI' },
-  { id: 'gemini', label: 'Google Gemini' },
-  { id: 'anthropic', label: 'Anthropic Claude' },
-  { id: 'ollama', label: 'Ollama (local)' },
-]
 export type MaterialOverview = {
   overview: string
   summary: string
@@ -91,15 +82,16 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-async function call<T>(body: Record<string, unknown>, provider?: QuizProviderConfig): Promise<T> {
+async function call<T>(body: Record<string, unknown>): Promise<T> {
   const session = await ensureSession()
-  const response = await fetch('/api/quiz', {
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+  const response = await fetch(`${apiBaseUrl}/api/quiz`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       ...(session ? { authorization: `Bearer ${session.access_token}` } : {}),
     },
-    body: JSON.stringify({ ...body, ...(provider ? { provider } : {}) }),
+    body: JSON.stringify({ ...body, provider: { id: 'nvidia' } }),
   })
   return readApiResponse<T>(response)
 }
@@ -107,7 +99,6 @@ async function call<T>(body: Record<string, unknown>, provider?: QuizProviderCon
 export async function makeQuiz(
   notes: string,
   types: QuizType[] = ['mcq', 'written'],
-  provider?: QuizProviderConfig,
   onProgress?: (completed: number, total: number) => void,
   excludedQuotes: string[] = [],
 ) {
@@ -131,7 +122,6 @@ export async function makeQuiz(
     try {
       const batch = await call<{ questions: QuizQuestion[]; truncated: boolean }>(
         { mode: 'generate', notes: chunks[index], count, types },
-        provider,
       )
       for (const question of batch.questions) {
         const quote = question.quote.trim().toLocaleLowerCase()
@@ -153,10 +143,10 @@ export async function makeQuiz(
   return { questions, truncated: questions.length < target, warnings, target }
 }
 
-export async function gradeAnswer(_notes: string, q: QuizQuestion, answer: string, provider?: QuizProviderConfig) {
-  return call<Grade>({ mode: 'grade', notes: q.quote, question: q.prompt, reference: q.answer, answer }, provider)
+export async function gradeAnswer(_notes: string, q: QuizQuestion, answer: string) {
+  return call<Grade>({ mode: 'grade', notes: q.quote, question: q.prompt, reference: q.answer, answer })
 }
 
-export function summarizeMaterial(notes: string, provider: QuizProviderConfig = { id: 'nvidia' }) {
-  return call<MaterialOverview>({ mode: 'summarize', notes }, provider)
+export function summarizeMaterial(notes: string) {
+  return call<MaterialOverview>({ mode: 'summarize', notes })
 }
