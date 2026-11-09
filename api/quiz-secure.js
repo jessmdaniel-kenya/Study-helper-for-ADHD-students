@@ -32,7 +32,12 @@ function supabaseConfig() {
 }
 
 function pythonServiceConfig() {
-  const url = (process.env.PYTHON_AI_SERVICE_URL || '').replace(/\/+$/, '')
+  // Tolerate the usual .env slips: surrounding spaces or quotes, and trailing slashes.
+  const url = (process.env.PYTHON_AI_SERVICE_URL || '')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .trim()
+    .replace(/\/+$/, '')
   if (!url) return null
   const token = process.env.PYTHON_AI_SERVICE_TOKEN
   if (!token) {
@@ -42,7 +47,16 @@ function pythonServiceConfig() {
   try {
     parsed = new URL(url)
   } catch {
-    throw Object.assign(new Error('PYTHON_AI_SERVICE_URL must be a valid HTTP(S) URL.'), { status: 503 })
+    const hint = /^[\w.-]+(:\d+)?(\/|$)/.test(url) && !/^https?:\/\//i.test(url)
+      ? ` Add the scheme, for example http://${url} locally or https://${url} in production.`
+      : ' Use a full URL such as http://127.0.0.1:8000 locally or https://your-ai-service.example.com in production.'
+    throw Object.assign(new Error(`PYTHON_AI_SERVICE_URL must be a valid HTTP(S) URL (got "${url}").${hint}`), { status: 503 })
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw Object.assign(
+      new Error(`PYTHON_AI_SERVICE_URL must start with http:// or https:// (got "${url}").`),
+      { status: 503 },
+    )
   }
   const localHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
   if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && localHosts.has(parsed.hostname))) {
