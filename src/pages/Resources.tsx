@@ -4,22 +4,29 @@ import { useNavigate } from 'react-router-dom'
 import type { ChangeEvent, DragEvent } from 'react'
 import { useAppStore } from '../stores/useAppStore'
 import { supabaseConfigured } from '../lib/supabase'
-import { createMaterial, listMaterials, removeMaterial, signedFileUrl } from '../lib/materials'
+import { createMaterial, listMaterials, removeMaterial, saveMaterialOverview, signedFileUrl } from '../lib/materials'
 import { extractText } from '../lib/extractor'
+import { summarizeMaterial, QUIZ_PROVIDERS } from '../lib/quizApi'
+import type { QuizProvider } from '../lib/quizApi'
+import type { MaterialOverview } from '../stores/useAppStore'
 import { BookOpen, Check, ChevronDown, ChevronUp, CloudUpload, ExternalLink, FileText, FolderOpen, Trash2, X } from 'lucide-react'
 
 const ACCEPTED_FILE_TYPES = '.pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp'
 const MAX_FILE_BYTES = 25 * 1024 * 1024
 
 export default function Resources() {
-  const { materials, addMaterial, deleteMaterial, toggleMarked, setMaterials } = useAppStore()
+  const { materials, addMaterial, deleteMaterial, toggleMarked, setMaterials, updateMaterial } = useAppStore()
   const navigate = useNavigate()
 
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [fileProgress, setFileProgress] = useState('')
   const [err, setErr] = useState('')
+  const [overviewBusyId, setOverviewBusyId] = useState<string | null>(null)
+  const [overviewProvider, setOverviewProvider] = useState<QuizProvider>('nvidia')
+  const [overviewError, setOverviewError] = useState<{ id: string; message: string } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -85,7 +92,7 @@ export default function Resources() {
     setUploading(true)
     setErr('')
     try {
-      const fileText = file ? await extractText(file) : ''
+      const fileText = file ? await extractText(file, setFileProgress) : ''
       const body = [notes.trim(), fileText].filter(Boolean).join('\n\n')
       if (!body) throw new Error('Add a file or paste some text so there is something to study.')
       const material = await createMaterial({
@@ -101,6 +108,24 @@ export default function Resources() {
       setErr(error instanceof Error ? error.message : 'Could not save this study material.')
     } finally {
       setUploading(false)
+      setFileProgress('')
+    }
+  }
+
+  const handleGenerateOverview = async (material: (typeof materials)[number]) => {
+    setOverviewBusyId(material.id)
+    setOverviewError(null)
+    try {
+      const overview: MaterialOverview = await summarizeMaterial(material.content, { id: overviewProvider })
+      await saveMaterialOverview(material.id, overview)
+      updateMaterial(material.id, { overview })
+    } catch (error) {
+      setOverviewError({
+        id: material.id,
+        message: error instanceof Error ? error.message : 'Could not create this overview.',
+      })
+    } finally {
+      setOverviewBusyId(null)
     }
   }
 
@@ -135,7 +160,18 @@ export default function Resources() {
           ? 'Your notes and original files sync privately to your Supabase account.'
           : 'Local-only mode: notes save in this browser. Add Supabase settings to sync across devices.'}
       </p>
+      <p className="hint page-description">Summaries and AI study sets are created only when requested. Extracted text is sent to your selected AI provider through the server; the original file is not sent.</p>
       </header>
+
+      <label className="provider-field">
+        <span>AI provider for summaries</span>
+        <select className="field" value={overviewProvider} onChange={(event) => {
+          const provider = QUIZ_PROVIDERS.find((option) => option.id === event.target.value)
+          if (provider) setOverviewProvider(provider.id)
+        }}>
+          {QUIZ_PROVIDERS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+        </select>
+      </label>
 
       <div className="material-grid">
         {materials.length === 0 && <p className="hint">Your desk is empty. Add a file below!</p>}
@@ -170,6 +206,36 @@ export default function Resources() {
               </h2>
               {m.fileName && <p className="hint">{m.fileName}</p>}
               <p className="snippet">{m.content.slice(0, 180)}{m.content.length > 180 ? '…' : ''}</p>
+              {m.overview && (
+                <section className="material-overview" aria-label={`Overview of ${m.title}`}>
+                  <h3 className="hint">Material overview</h3>
+                  <p>{m.overview.overview}</p>
+                  <details>
+                    <summary>Read summary and study guide</summary>
+                    <p>{m.overview.summary}</p>
+                    {m.overview.keyPoints.length > 0 && (
+                      <>
+                        <strong>Key points</strong>
+                        <ul>{m.overview.keyPoints.map(({ point, quote }, index) => (
+                          <li key={`${index}-${point}`}>{point}<p className="hint">Source: “{quote}”</p></li>
+                        ))}</ul>
+                      </>
+                    )}
+                    {m.overview.keyTerms.length > 0 && (
+                      <>
+                        <strong>Key terms</strong>
+                        <ul>{m.overview.keyTerms.map(({ term, definition }) => <li key={term}><strong>{term}:</strong> {definition}</li>)}</ul>
+                      </>
+                    )}
+                    {m.overview.studyPlan.length > 0 && (
+                      <>
+                        <strong>Suggested study steps</strong>
+                        <ol>{m.overview.studyPlan.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}</ol>
+                      </>
+                    )}
+                  </details>
+                </section>
+              )}
             </div>
 
             <div className="stack material-card-footer">
@@ -178,6 +244,14 @@ export default function Resources() {
                   <BookOpen size={16} aria-hidden="true" />
                   Study this
                 </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={overviewBusyId !== null}
+                  onClick={() => { void handleGenerateOverview(m) }}
+                >
+                  {overviewBusyId === m.id ? 'Creating overview…' : m.overview ? 'Refresh overview' : 'Create summary & overview'}
+                </button>
                 {m.storagePath && (
                   <button type="button" className="btn-secondary" onClick={() => { void handleOpenFile(m.storagePath) }}>
                     <ExternalLink size={16} aria-hidden="true" />
@@ -185,6 +259,7 @@ export default function Resources() {
                   </button>
                 )}
               </div>
+              {overviewError?.id === m.id && <p className="err" role="alert">{overviewError.message}</p>}
 
               {m.progress.length > 0 && (
                 <button
@@ -287,8 +362,9 @@ export default function Resources() {
 
         <button type="button" className="btn-primary" disabled={uploading || (!file && !notes.trim())} onClick={handleAdd}>
           {uploading ? null : <Check size={16} aria-hidden="true" />}
-          {uploading ? 'Adding material…' : 'Add to my desk'}
+          {uploading ? 'Processing material…' : 'Add to my desk'}
         </button>
+        {fileProgress && <p className="hint" role="status" aria-live="polite">{fileProgress}</p>}
         {err && <p className="err" role="alert">{err}</p>}
       </div>
       </div>

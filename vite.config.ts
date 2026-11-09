@@ -84,6 +84,12 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "")
     process.env.SUPABASE_URL ||= env.SUPABASE_URL || env.VITE_SUPABASE_URL
     process.env.SUPABASE_ANON_KEY ||= env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY
+    process.env.NVIDIA_API_KEY ||= env.NVIDIA_API_KEY || env.AI_API_KEY
+    process.env.NVIDIA_MODEL ||= env.NVIDIA_MODEL || env.AI_MODEL
+    process.env.AI_API_KEY ||= env.AI_API_KEY
+    process.env.AI_MODEL ||= env.AI_MODEL
+    process.env.PYTHON_AI_SERVICE_URL ||= env.PYTHON_AI_SERVICE_URL
+    process.env.PYTHON_AI_SERVICE_TOKEN ||= env.PYTHON_AI_SERVICE_TOKEN
   }
 
   return {

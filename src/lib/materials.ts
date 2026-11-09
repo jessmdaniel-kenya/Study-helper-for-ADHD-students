@@ -1,5 +1,5 @@
 // src/lib/materials.ts
-import type { Material } from '../stores/useAppStore'
+import type { Material, MaterialOverview } from '../stores/useAppStore'
 import { ensureSession } from './auth'
 import { supabase, supabaseConfigured } from './supabase'
 
@@ -7,6 +7,7 @@ const LOCAL_KEY = 'study-helper.materials.v1'
 const BUCKET = 'study-materials'
 const MAX_FILE_BYTES = 25 * 1024 * 1024
 const COLUMNS = 'id,title,full_text,file_name,storage_path'
+const COLUMNS_WITH_OVERVIEW = `${COLUMNS},overview`
 
 type MaterialRow = {
   id: string
@@ -14,6 +15,7 @@ type MaterialRow = {
   full_text: string
   file_name: string | null
   storage_path: string | null
+  overview: MaterialOverview | null
 }
 
 function fromRow(row: MaterialRow): Material {
@@ -23,9 +25,35 @@ function fromRow(row: MaterialRow): Material {
     content: row.full_text,
     fileName: row.file_name || undefined,
     storagePath: row.storage_path || undefined,
+    overview: row.overview && isMaterialOverview(row.overview) ? row.overview : undefined,
     marked: false,
     progress: [],
   }
+}
+
+function overviewColumnMissing(error: { code?: string; message?: string }) {
+  return error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    /column .*overview.* does not exist|could not find .*overview.*column/i.test(error.message || '')
+}
+
+function isMaterialOverview(value: unknown): value is MaterialOverview {
+  if (!value || typeof value !== 'object') return false
+  const overview = value as Record<string, unknown>
+  return typeof overview.overview === 'string' &&
+    typeof overview.summary === 'string' &&
+    Array.isArray(overview.keyPoints) &&
+    overview.keyPoints.every((item) =>
+      item && typeof item === 'object' &&
+      typeof item.point === 'string' && typeof item.quote === 'string',
+    ) &&
+    Array.isArray(overview.keyTerms) &&
+    overview.keyTerms.every((item) =>
+      item && typeof item === 'object' &&
+      typeof item.term === 'string' && typeof item.definition === 'string',
+    ) &&
+    Array.isArray(overview.studyPlan) &&
+    overview.studyPlan.every((step) => typeof step === 'string')
 }
 
 function readLocalMaterials(): Material[] {
@@ -33,7 +61,13 @@ function readLocalMaterials(): Material[] {
     const value: unknown = JSON.parse(window.localStorage.getItem(LOCAL_KEY) || '[]')
     if (!Array.isArray(value)) return []
     return value.filter((item): item is Material =>
-      item && typeof item.id === 'string' && typeof item.title === 'string' && typeof item.content === 'string',
+      item &&
+      typeof item.id === 'string' &&
+      typeof item.title === 'string' &&
+      typeof item.content === 'string' &&
+      typeof item.marked === 'boolean' &&
+      Array.isArray(item.progress) &&
+      (item.overview === undefined || isMaterialOverview(item.overview)),
     )
   } catch {
     return []
@@ -57,15 +91,26 @@ function allowedExtension(file: File) {
   return extension
 }
 
+function validateFile(file?: File | null) {
+  if (!file) return
+  allowedExtension(file)
+}
+
 export async function listMaterials(): Promise<Material[]> {
   if (!supabaseConfigured) return readLocalMaterials()
   await ensureSession()
-  const { data, error } = await supabase
+  const withOverview = await supabase
     .from('materials')
-    .select(COLUMNS)
+    .select(COLUMNS_WITH_OVERVIEW)
     .order('created_at', { ascending: false })
-  if (error) throw new Error(`Could not sync study materials: ${error.message}`)
-  return (data || []).map((row) => fromRow(row as MaterialRow))
+  if (withOverview.error && !overviewColumnMissing(withOverview.error)) {
+    throw new Error(`Could not sync study materials: ${withOverview.error.message}`)
+  }
+  const result = withOverview.error
+    ? await supabase.from('materials').select(COLUMNS).order('created_at', { ascending: false })
+    : withOverview
+  if (result.error) throw new Error(`Could not sync study materials: ${result.error.message}`)
+  return (result.data || []).map((row) => fromRow(row as MaterialRow))
 }
 
 export async function createMaterial(input: {
@@ -73,6 +118,7 @@ export async function createMaterial(input: {
   content: string
   file?: File | null
 }): Promise<Material> {
+  validateFile(input.file)
   const title = input.title.trim().slice(0, 200) || 'Untitled document'
   const content = input.content.trim()
   if (!content) throw new Error('Add some notes before saving.')
@@ -106,16 +152,27 @@ export async function createMaterial(input: {
     if (uploadError) throw new Error(`Could not upload the original file: ${uploadError.message}`)
   }
 
-  const { data, error } = await supabase
+  const withOverview = await supabase
     .from('materials')
     .insert({ title, full_text: content, file_name: input.file?.name || null, storage_path: storagePath })
-    .select(COLUMNS)
+    .select(COLUMNS_WITH_OVERVIEW)
     .single()
-  if (error) {
-    if (storagePath) await supabase.storage.from(BUCKET).remove([storagePath])
-    throw new Error(`Could not save this study material: ${error.message}`)
+  const result = withOverview.error && overviewColumnMissing(withOverview.error)
+    ? await supabase
+      .from('materials')
+      .insert({ title, full_text: content, file_name: input.file?.name || null, storage_path: storagePath })
+      .select(COLUMNS)
+      .single()
+    : withOverview
+  if (result.error) {
+    let cleanupError = ''
+    if (storagePath) {
+      const { error: removeError } = await supabase.storage.from(BUCKET).remove([storagePath])
+      if (removeError) cleanupError = ' The uploaded file may need to be removed from storage manually.'
+    }
+    throw new Error(`Could not save this study material: ${result.error.message}.${cleanupError}`)
   }
-  return fromRow(data as MaterialRow)
+  return fromRow(result.data as MaterialRow)
 }
 
 export async function removeMaterial(id: string, storagePath?: string) {
@@ -128,8 +185,25 @@ export async function removeMaterial(id: string, storagePath?: string) {
   if (error) throw new Error(`Could not delete this study material: ${error.message}`)
   if (storagePath) {
     const { error: storageError } = await supabase.storage.from(BUCKET).remove([storagePath])
-    if (storageError) console.warn('The note was deleted, but its private file could not be removed.')
+    if (storageError) throw new Error('The material was deleted, but its private original file could not be removed from storage.')
   }
+}
+
+export async function saveMaterialOverview(id: string, overview: MaterialOverview): Promise<void> {
+  if (!supabaseConfigured) {
+    const materials = readLocalMaterials()
+    const updated = materials.map((material) => material.id === id ? { ...material, overview } : material)
+    if (!updated.some((material) => material.id === id)) throw new Error('This material is no longer available.')
+    writeLocalMaterials(updated)
+    return
+  }
+  await ensureSession()
+  const { data, error } = await supabase.from('materials').update({ overview }).eq('id', id).select('id').maybeSingle()
+  if (error && overviewColumnMissing(error)) {
+    throw new Error('Summaries need the Supabase material-overview migration. In the Supabase SQL Editor, run supabase/migrations/02_ai_material_overviews.sql, then retry.')
+  }
+  if (error) throw new Error(`Could not save this material overview: ${error.message}`)
+  if (!data) throw new Error('This material is no longer available.')
 }
 
 export async function signedFileUrl(storagePath?: string): Promise<string | null> {

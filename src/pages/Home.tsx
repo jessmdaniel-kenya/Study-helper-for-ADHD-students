@@ -38,13 +38,22 @@ export default function Home() {
     setErrorMsg(null)
     setSuccessMsg(null)
 
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      setLoading(false)
+      setErrorMsg(`Could not check your study session: ${sessionError.message}`)
+      return
+    }
+
+    const { error } = session?.user.is_anonymous
+      ? await supabase.auth.updateUser({ email, password })
+      : await supabase.auth.signUp({ email, password })
     setLoading(false)
 
     if (error) {
       setErrorMsg(error.message)
     } else {
-      setSuccessMsg('Account created! Check your email for confirmation.')
+      setSuccessMsg('Account linked. Check your email to confirm it and enable cross-device sync.')
     }
   }
 
@@ -73,7 +82,7 @@ export default function Home() {
       <section className="card stack">
         <div className="badge"><KeyRound size={15} aria-hidden="true" /> STUDENT PORTAL</div>
         <h2 className="section-title">Sign up or sign in to sync notes</h2>
-        <p className="sub-text">Create an account right here to secure your study sessions and access them across devices.</p>
+        <p className="sub-text">You can study and use shared NVIDIA AI as a guest. Create or sign in to link your current study space and sync notes across devices.</p>
 
         {errorMsg && <div className="err" style={{ marginTop: '8px' }}>{errorMsg}</div>}
         {successMsg && <div style={{ color: 'var(--a3)', fontSize: '14px', marginTop: '8px' }}>{successMsg}</div>}
