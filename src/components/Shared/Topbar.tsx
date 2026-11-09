@@ -46,7 +46,7 @@ export default function Topbar({
         <label className="sidebar-collapse-toggle">
           <input
             type="checkbox"
-            checked={sidebarCollapsed}
+            checked={!sidebarCollapsed}
             onChange={toggleSidebarCollapsed}
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-controls="primary-sidebar"
