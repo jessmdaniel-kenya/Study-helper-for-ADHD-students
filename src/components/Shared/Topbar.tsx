@@ -1,20 +1,13 @@
-import { Menu, Type, Eye } from 'lucide-react'
+import { Menu, Eye } from 'lucide-react'
 import ThemeControl from './ThemeControl'
-import type { ThemeMode, ThemePalette } from './ThemeControl'
+import ThemeToggle from './ThemeToggle'
+import { setPreferences, usePreferences } from '@/lib/preferences'
 
 interface TopbarProps {
   toggleSidebar: () => void
   sidebarOpen: boolean
   sidebarCollapsed: boolean
   toggleSidebarCollapsed: () => void
-  dys: boolean
-  setDys: (val: boolean) => void
-  calm: boolean
-  setCalm: (val: boolean) => void
-  palette: ThemePalette
-  mode: ThemeMode
-  setPalette: (palette: ThemePalette) => void
-  setMode: (mode: ThemeMode) => void
 }
 
 export default function Topbar({
@@ -22,20 +15,14 @@ export default function Topbar({
   sidebarOpen,
   sidebarCollapsed,
   toggleSidebarCollapsed,
-  dys,
-  setDys,
-  calm,
-  setCalm,
-  palette,
-  mode,
-  setPalette,
-  setMode,
 }: TopbarProps) {
+  const { calm } = usePreferences()
+
   return (
     <header className="topbar">
       <div className="topbar-navigation">
-        <button 
-          className="hamburger-btn" 
+        <button
+          className="hamburger-btn"
           onClick={toggleSidebar}
           aria-label="Toggle navigation menu"
           aria-expanded={sidebarOpen}
@@ -60,28 +47,19 @@ export default function Topbar({
           </svg>
         </label>
       </div>
-      
+
       <div className="topbar-tools">
-        <label className="accessibility-toggle">
-          <input
-            type="checkbox"
-            checked={dys}
-            onChange={(e) => setDys(e.target.checked)}
-          />
-          <Type size={16} aria-hidden="true" />
-          <span>Dyslexia font</span>
-        </label>
-        
         <label className="accessibility-toggle" title="Reduce motion, bright accents, and visual effects">
           <input
             type="checkbox"
             checked={calm}
-            onChange={(e) => setCalm(e.target.checked)}
+            onChange={(e) => setPreferences({ calm: e.target.checked })}
           />
           <Eye size={16} aria-hidden="true" />
           <span>Low stimulation</span>
         </label>
-        <ThemeControl palette={palette} mode={mode} setPalette={setPalette} setMode={setMode} />
+        <ThemeToggle />
+        <ThemeControl />
       </div>
     </header>
   )

@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useEffect } from 'react'
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { useAppStore } from './stores/useAppStore'
 import { listMaterials } from './lib/materials'
 import { supabase, supabaseConfigured } from './lib/supabase'
@@ -12,6 +12,8 @@ import Study from './pages/Study'
 import Game from './pages/Game'
 import EnergyCheckin from './pages/EnergyCheckIn'
 import Feed from './pages/Feed'
+import Landing from './pages/Landing'
+import Auth from './pages/Auth'
 
 export default function App() {
   const setMaterials = useAppStore((state) => state.setMaterials)
@@ -22,6 +24,15 @@ export default function App() {
     const refreshMaterials = async () => {
       const current = ++generation
       try {
+        // Visitors on the landing page have not chosen guest mode yet, so do not
+        // create an anonymous session for them; refresh once they sign in.
+        if (supabaseConfigured) {
+          const { data } = await supabase.auth.getSession()
+          if (!data.session) {
+            if (active && current === generation) setMaterials([])
+            return
+          }
+        }
         const materials = await listMaterials()
         if (active && current === generation) setMaterials(materials)
       } catch {
@@ -44,15 +55,20 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        {/* Everything routes through your new responsive layout */}
+        {/* Public entry: landing page, then guest start / sign in */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/start" element={<Auth />} />
+
+        {/* The app itself runs inside the responsive sidebar layout */}
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Home />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/study" element={<Study />} />
           <Route path="/game" element={<Game />} />
           <Route path="/energy" element={<EnergyCheckin />} />
           <Route path="/feed" element={<Feed />} />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
   )

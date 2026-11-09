@@ -1,3 +1,68 @@
+/* Tailwind v4 without Preflight: the legacy stylesheet below already resets the page.
+   Legacy rules live in the base layer so shadcn/Kokonut utilities can override them. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+/* `dark:` follows the resolved theme (light, dark, or the OS in system mode). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* shadcn tokens mapped onto the existing palette variables, so every palette,
+   light/dark mode and low-stimulation mode restyles the components automatically. */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--card);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--a1);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--card-active);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--card-active);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--card-active);
+  --color-accent-foreground: var(--text);
+  --color-destructive: #ef4444;
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--a3);
+  --color-brand-1: var(--a1);
+  --color-brand-2: var(--a2);
+  --color-brand-3: var(--a3);
+  --color-brand-4: var(--a4);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 6px);
+  --radius-lg: calc(var(--radius) - 4px);
+  --radius-xl: var(--radius);
+  --font-sans: var(--font-body);
+}
+
+@layer base {
+  /* Without Preflight, native button chrome (grey fill, outset border) leaks into
+     shadcn/Kokonut components. Reset it only inside the new Tailwind-styled pages;
+     :where() keeps specificity at zero so utility classes always win. */
+  :where(.tw-scope) :where(button) {
+    background-color: transparent;
+    border: 0 solid;
+    padding: 0;
+  }
+
+  :where(.tw-scope) :where(fieldset) {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  :where(.tw-scope) :where(legend) {
+    padding: 0;
+  }
+}
+
+@layer base {
 :root {
   --bg: #090a0d;
   --card: #12151b;
@@ -1383,6 +1448,25 @@ h2.section-title::after {
   flex: 1;
 }
 
+/* Guest "save your progress" prompt on the Home dashboard */
+.home-save-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.home-save-card .form-actions {
+  flex-wrap: wrap;
+}
+
+.home-save-card .card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Home dashboard */
 .home-feature {
   padding: clamp(24px, 4vw, 38px);
@@ -2585,5 +2669,127 @@ h2.section-title::after {
 
   :root[data-theme-mode='system'] .btn-secondary:hover:not(:disabled) {
     background: color-mix(in srgb, var(--a1) 8%, white);
+  }
+}
+}
+
+/* ── Reading preferences, interactive surfaces (added with the Display menu) ── */
+@layer base {
+  /* Text size scales page content like browser zoom, so legacy px sizes follow too. */
+  .page-content,
+  .tw-scope > main {
+    zoom: var(--reading-scale, 1);
+  }
+
+  :root[data-spacing='compact'] :is(body, p, li, .sub-text, .hint, small) {
+    line-height: 1.42;
+  }
+
+  :root[data-spacing='relaxed'] :is(body, p, li, .sub-text, .hint, small) {
+    line-height: 1.9;
+    letter-spacing: 0.012em;
+    word-spacing: 0.06em;
+  }
+
+  /* Bigger Display menu with room for fonts; scrolls inside on short screens. */
+  .theme-menu.display-menu {
+    width: min(360px, calc(100vw - 24px));
+    max-height: min(78vh, 700px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform-origin: top right;
+    animation: display-menu-in 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  @keyframes display-menu-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  }
+
+  /* Cursor spotlight + lift on cards and choice tiles. --mx/--my come from src/lib/spotlight.ts. */
+  :is(.card, .resource-card, .energy-choice, .blueprint-card, .collection-item, .material-card) {
+    position: relative;
+    isolation: isolate;
+  }
+
+  :is(.card, .resource-card, .energy-choice, .blueprint-card, .collection-item, .material-card)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      420px circle at var(--mx, 50%) var(--my, 0%),
+      color-mix(in srgb, var(--a1) 11%, transparent),
+      transparent 62%
+    );
+    transition: opacity 220ms ease;
+  }
+
+  :is(.card, .resource-card, .energy-choice, .blueprint-card, .collection-item, .material-card):hover::after {
+    opacity: 1;
+  }
+
+  :is(.card, .resource-card):hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--a1) 32%, var(--border));
+  }
+
+  :is(.energy-choice, .blueprint-card, .collection-item.unlocked):hover {
+    transform: translateY(-3px);
+  }
+
+  :is(.energy-choice, .blueprint-card, .collection-item) {
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  }
+
+  /* Buttons: a light sweep on hover and a clear press. */
+  .btn-primary {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 600ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .btn-primary:hover:not(:disabled)::before {
+    transform: translateX(120%);
+  }
+
+  :is(.btn-primary, .btn-secondary):active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--a1) 48%, var(--border));
+    background: color-mix(in srgb, var(--a1) 8%, transparent);
+  }
+
+  /* Active sidebar link gets an accent rail. */
+  .nav-link.active {
+    box-shadow: inset 3px 0 0 var(--a1);
+  }
+
+  /* Light theme keeps card hovers visible. */
+  :root[data-theme-resolved='light'] :is(.card, .resource-card):hover {
+    box-shadow: 0 18px 40px rgba(26, 35, 54, 0.12);
+  }
+
+  body.calm :is(.card, .resource-card, .energy-choice, .blueprint-card, .collection-item, .material-card)::after,
+  body.calm .btn-primary::before {
+    display: none;
+  }
+
+  body.calm :is(.card, .resource-card, .energy-choice, .blueprint-card, .collection-item):hover {
+    transform: none;
   }
 }

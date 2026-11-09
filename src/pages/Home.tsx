@@ -1,61 +1,13 @@
 // src/pages/Home.tsx
-import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
-import { supabase } from '../lib/supabase'
+import { useSession } from '../hooks/useSession'
 import { AlertTriangle, ArrowRight, BookOpen, KeyRound, Sprout, Zap } from 'lucide-react'
 
 export default function Home() {
   const navigate = useNavigate()
   const { materials } = useAppStore()
-
-  // Inline auth state for home page
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setErrorMsg(null)
-    setSuccessMsg(null)
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-
-    if (error) {
-      setErrorMsg(error.message)
-    } else {
-      setSuccessMsg('Signed in successfully!')
-      setTimeout(() => navigate('/study'), 1000)
-    }
-  }
-
-  const handleSignUp = async () => {
-    setLoading(true)
-    setErrorMsg(null)
-    setSuccessMsg(null)
-
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) {
-      setLoading(false)
-      setErrorMsg(`Could not check your study session: ${sessionError.message}`)
-      return
-    }
-
-    const { error } = session?.user.is_anonymous
-      ? await supabase.auth.updateUser({ email, password })
-      : await supabase.auth.signUp({ email, password })
-    setLoading(false)
-
-    if (error) {
-      setErrorMsg(error.message)
-    } else {
-      setSuccessMsg('Account linked. Check your email to confirm it and enable cross-device sync.')
-    }
-  }
+  const { session, isGuest } = useSession()
 
   return (
     <div className="page stack">
@@ -78,52 +30,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Embedded Sign Up / Sign In Portal Card */}
-      <section className="card stack">
-        <div className="badge"><KeyRound size={15} aria-hidden="true" /> STUDENT PORTAL</div>
-        <h2 className="section-title">Sign up or sign in to sync notes</h2>
-        <p className="sub-text">You can study and use shared NVIDIA AI as a guest. Create or sign in to link your current study space and sync notes across devices.</p>
-
-        {errorMsg && <div className="err" style={{ marginTop: '8px' }}>{errorMsg}</div>}
-        {successMsg && <div style={{ color: 'var(--a3)', fontSize: '14px', marginTop: '8px' }}>{successMsg}</div>}
-
-        <form onSubmit={handleLogin} className="form-stack">
-          <div>
-            <label className="hint form-label">Email Address</label>
-            <input 
-              type="email" 
-              className="field" 
-              placeholder="student@university.ac.ke"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              style={{ width: '100%', boxSizing: 'border-box' }}
-            />
+      {/* Guests get a gentle nudge to keep their work; account holders see nothing here. */}
+      {(isGuest || !session) && (
+        <section className="card home-save-card">
+          <div className="stack">
+            <div className="badge"><KeyRound size={15} aria-hidden="true" /> {isGuest ? 'GUEST DESK' : 'STUDENT PORTAL'}</div>
+            <h2 className="section-title">{isGuest ? 'Keep your progress safe' : 'Sign in to sync notes'}</h2>
+            <p className="sub-text">
+              {isGuest
+                ? 'You are studying as a guest. Add an email to keep these notes and sync them across devices.'
+                : 'Create an account or sign in to keep notes and progress across devices.'}
+            </p>
           </div>
-
-          <div>
-            <label className="hint form-label">Password</label>
-            <input 
-              type="password" 
-              className="field" 
-              placeholder="••••••••"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', boxSizing: 'border-box' }}
-            />
-          </div>
-
           <div className="row form-actions">
-            <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
-              {loading ? 'Processing...' : 'Sign in'}
-            </button>
-            <button type="button" className="btn-secondary" onClick={handleSignUp} disabled={loading} style={{ flex: 1 }}>
-              Create Account (Sign Up)
-            </button>
+            <Link to="/start?mode=signup" className="btn-primary card-link">
+              {isGuest ? 'Save my progress' : 'Create account'} <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+            <Link to="/start?mode=signin" className="btn-secondary card-link">Sign in</Link>
           </div>
-        </form>
-      </section>
+        </section>
+      )}
 
       {/* Quick Dashboard Grid */}
       <div className="dashboard-grid">

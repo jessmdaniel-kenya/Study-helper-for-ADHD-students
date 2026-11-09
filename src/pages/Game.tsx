@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   AudioLines,
@@ -9,6 +9,7 @@ import {
   Eye,
   Gem,
   Glasses,
+  Gamepad2,
   Hammer,
   Lightbulb,
   RotateCcw,
@@ -24,6 +25,8 @@ import {
   getGameProgress,
   updateGamePreferences,
 } from '../lib/gameProgress'
+import CheckInGames from '@/components/Games/CheckInGames'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const ITEM_ICONS: Record<(typeof GAME_ITEMS)[number]['id'], LucideIcon> = {
   gear: Settings2,
@@ -45,6 +48,8 @@ const BLUEPRINTS = [
 export default function Game() {
   const [progress, setProgress] = useState(getGameProgress)
   const [notice, setNotice] = useState('')
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('tab') === 'workbench' ? 'workbench' : 'checkin'
   const sessionsToNext = progress.completedSessions % 4
     ? 4 - (progress.completedSessions % 4)
     : 4
@@ -74,14 +79,29 @@ export default function Game() {
   return (
     <div className={`page stack game-page${progress.animationsEnabled ? '' : ' no-game-animations'}`}>
       <header className="page-heading">
-        <div className="step-label">GAME & COLLECTION</div>
-        <h1 className="section-title">The Tinker’s Workbench</h1>
+        <div className="step-label">GAMES</div>
+        <h1 className="section-title">Play, check in, and collect</h1>
         <p className="sub-text page-description">
-          Finish study sessions to collect parts, then combine your collection into useful study gadgets.
-          No timers, rankings, or pressure.
+          One-minute check-in games to settle in before studying, plus the Tinker’s Workbench where
+          finished sessions turn into collectible parts. No timers, rankings, or pressure.
         </p>
       </header>
 
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setParams(value === 'workbench' ? { tab: 'workbench' } : {}, { replace: true })}
+        className="tw-scope gap-5"
+      >
+        <TabsList className="h-11 w-full max-w-md rounded-xl">
+          <TabsTrigger value="checkin" className="rounded-lg"><Gamepad2 aria-hidden="true" /> Check-in games</TabsTrigger>
+          <TabsTrigger value="workbench" className="rounded-lg"><Hammer aria-hidden="true" /> Workbench</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="checkin">
+          <CheckInGames />
+        </TabsContent>
+
+        <TabsContent value="workbench" className="stack">
       <section className="card stack game-progress-card" aria-labelledby="parts-progress-title">
         <div className="game-card-heading">
           <div>
@@ -212,6 +232,8 @@ export default function Game() {
       </section>
 
       {notice && <p className="game-notice" role="status">{notice}</p>}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
