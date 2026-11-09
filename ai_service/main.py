@@ -1,5 +1,6 @@
 import hmac
 import os
+import re
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -57,7 +58,7 @@ def _required_env(name: str, aliases: tuple[str, ...] = ()) -> str:
 def _provider_config(provider: Provider) -> tuple[str, str, dict[str, str], str]:
     if provider is Provider.NVIDIA:
         key = _required_env("NVIDIA_API_KEY", ("AI_API_KEY",))
-        model = os.getenv("NVIDIA_MODEL") or os.getenv("AI_MODEL") or "meta/llama-3.3-70b-instruct"
+        model = os.getenv("NVIDIA_MODEL") or os.getenv("AI_MODEL") or DEFAULT_NVIDIA_MODEL
         base_url = (os.getenv("NVIDIA_API_URL") or "https://integrate.api.nvidia.com/v1").rstrip("/")
         return f"{base_url}/chat/completions", model, {"Authorization": f"Bearer {key}"}, "openai"
 
@@ -92,6 +93,19 @@ def _provider_config(provider: Provider) -> tuple[str, str, dict[str, str], str]
     return f"{base_url}/api/chat", model, {}, "ollama"
 
 
+# meta/llama-3.3-70b-instruct reached end of life on NVIDIA on 2026-08-26.
+DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+_NON_CHAT_NEMOTRON = re.compile(r"embed|safety|guard|reward|parse", re.IGNORECASE)
+
+
+def _nvidia_extras(model: str) -> dict:
+    """Nemotron chat models reason first and can spend the whole output budget
+    before answering (empty content, finish_reason "length"); ask them to answer directly."""
+    if "nemotron" in model.lower() and not _NON_CHAT_NEMOTRON.search(model):
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    return {}
+
+
 def _payload(model: str, prompt: str, max_tokens: int, protocol: str, provider: Provider) -> dict:
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}]
     if protocol == "openai":
@@ -101,6 +115,7 @@ def _payload(model: str, prompt: str, max_tokens: int, protocol: str, provider: 
             "max_completion_tokens" if provider is Provider.OPENAI else "max_tokens": max_tokens,
             "temperature": 0.2,
             "stream": False,
+            **(_nvidia_extras(model) if provider is Provider.NVIDIA else {}),
         }
     if protocol == "anthropic":
         return {

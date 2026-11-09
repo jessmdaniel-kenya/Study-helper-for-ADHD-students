@@ -220,7 +220,10 @@ test('NVIDIA requests authenticate the user and use only the server-side key and
 
     assert.equal(providerRequest.url, 'https://integrate.api.nvidia.com/v1/chat/completions')
     assert.equal(providerRequest.options.headers.authorization, 'Bearer server-only-key')
-    assert.equal(JSON.parse(providerRequest.options.body).model, 'meta/llama-3.3-70b-instruct')
+    const sent = JSON.parse(providerRequest.options.body)
+    assert.equal(sent.model, 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning')
+    // Nemotron must answer directly, or reasoning can use the whole output budget.
+    assert.deepEqual(sent.chat_template_kwargs, { enable_thinking: false })
     assert.equal(res.statusCode, 200)
     assert.equal(res.body.questions.length, 1)
     assert.equal(JSON.stringify(res.body).includes('server-only-key'), false)
@@ -550,4 +553,11 @@ test('daily AI quota denial is surfaced without calling NVIDIA', async () => {
     if (previous.nvidiaApiKey === undefined) delete process.env.NVIDIA_API_KEY
     else process.env.NVIDIA_API_KEY = previous.nvidiaApiKey
   }
+})
+
+test('only Nemotron chat models get the thinking-off flag', async () => {
+  const { nvidiaRequestExtras } = await import('../api/quiz-secure.js')
+  assert.deepEqual(nvidiaRequestExtras('nvidia/nemotron-3.5-lightning-30b-a3b'), { chat_template_kwargs: { enable_thinking: false } })
+  assert.deepEqual(nvidiaRequestExtras('nvidia/nemotron-3.5-embed-1b'), {})
+  assert.deepEqual(nvidiaRequestExtras('google/gemma-4-31b-it'), {})
 })

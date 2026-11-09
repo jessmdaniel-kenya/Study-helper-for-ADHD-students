@@ -82,14 +82,20 @@ function localQuizApi() {
 export default defineConfig(({ mode }) => {
   if (mode === "development") {
     const env = loadEnv(mode, process.cwd(), "")
-    process.env.SUPABASE_URL ||= env.SUPABASE_URL || env.VITE_SUPABASE_URL
-    process.env.SUPABASE_ANON_KEY ||= env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY
-    process.env.NVIDIA_API_KEY ||= env.NVIDIA_API_KEY || env.AI_API_KEY
-    process.env.NVIDIA_MODEL ||= env.NVIDIA_MODEL || env.AI_MODEL
-    process.env.AI_API_KEY ||= env.AI_API_KEY
-    process.env.AI_MODEL ||= env.AI_MODEL
-    process.env.PYTHON_AI_SERVICE_URL ||= env.PYTHON_AI_SERVICE_URL
-    process.env.PYTHON_AI_SERVICE_TOKEN ||= env.PYTHON_AI_SERVICE_TOKEN
+    // Node stringifies anything assigned to process.env, so assigning a missing
+    // value would store the text "undefined" and make unset settings look set.
+    const setDefault = (name: string, ...values: (string | undefined)[]) => {
+      const value = values.find((candidate) => candidate?.trim())
+      if (!process.env[name] && value) process.env[name] = value
+    }
+    setDefault("SUPABASE_URL", env.SUPABASE_URL, env.VITE_SUPABASE_URL)
+    setDefault("SUPABASE_ANON_KEY", env.SUPABASE_ANON_KEY, env.VITE_SUPABASE_ANON_KEY)
+    setDefault("NVIDIA_API_KEY", env.NVIDIA_API_KEY, env.AI_API_KEY)
+    setDefault("NVIDIA_MODEL", env.NVIDIA_MODEL, env.AI_MODEL)
+    setDefault("AI_API_KEY", env.AI_API_KEY)
+    setDefault("AI_MODEL", env.AI_MODEL)
+    setDefault("PYTHON_AI_SERVICE_URL", env.PYTHON_AI_SERVICE_URL)
+    setDefault("PYTHON_AI_SERVICE_TOKEN", env.PYTHON_AI_SERVICE_TOKEN)
   }
 
   return {
