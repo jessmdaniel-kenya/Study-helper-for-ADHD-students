@@ -15,6 +15,14 @@ export interface MaterialProgress {
   date: string;
 }
 
+export interface MaterialOverview {
+  overview: string
+  summary: string
+  keyPoints: { point: string; quote: string }[]
+  keyTerms: { term: string; definition: string }[]
+  studyPlan: string[]
+}
+
 export interface Material {
   id: string;
   title: string;
@@ -22,6 +30,7 @@ export interface Material {
   fileUrl?: string;
   fileName?: string;
   storagePath?: string;
+  overview?: MaterialOverview;
   marked: boolean;
   progress: MaterialProgress[]; 
 }
@@ -36,6 +45,7 @@ interface AppState {
   materialsLoaded: boolean;
   setMaterials: (materials: Material[]) => void;
   addMaterial: (m: Material) => void;
+  updateMaterial: (id: string, updates: Partial<Material>) => void;
   deleteMaterial: (id: string) => void;
   toggleMarked: (id: string) => void;
 }
@@ -59,6 +69,9 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   setMaterials: (materials) => set({ materials, materialsLoaded: true }),
   addMaterial: (m) => set((state) => ({ materials: [m, ...(state.materials || [])] })),
+  updateMaterial: (id, updates) => set((state) => ({
+    materials: state.materials.map((material) => material.id === id ? { ...material, ...updates } : material),
+  })),
   deleteMaterial: (id) => set((state) => ({ materials: state.materials.filter(m => m.id !== id) })),
   toggleMarked: (id) => set((state) => ({
     materials: state.materials.map(m => m.id === id ? { ...m, marked: !m.marked } : m)

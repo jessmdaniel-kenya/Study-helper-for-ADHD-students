@@ -1,10 +1,10 @@
 export const MAX_NOTES_CHARS = 20_000
+export const MAX_SUMMARY_CHARS = 80_000
 export const MAX_ANSWER_CHARS = 2_000
+export const MAX_QUESTIONS_PER_BATCH = 12
 const ALLOWED_TYPES = new Set(['flashcard', 'mcq', 'written'])
-const PROVIDER_MODELS = {
-  deepseek: 'deepseek-chat',
-  nvidia: 'meta/llama-3.3-70b-instruct',
-}
+const ALLOWED_MODES = new Set(['generate', 'grade', 'summarize'])
+const ALLOWED_PROVIDERS = new Set(['nvidia', 'openai', 'gemini', 'anthropic', 'ollama'])
 const STOP_WORDS = new Set([
   'about', 'after', 'again', 'also', 'among', 'because', 'been', 'being', 'between',
   'could', 'during', 'each', 'from', 'have', 'into', 'more', 'most', 'other', 'over',
@@ -18,29 +18,26 @@ export function validateQuizRequest(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new Error('Request body must be an object.')
   }
-  if (!['generate', 'grade'].includes(body.mode)) {
-    throw new Error('Choose generate or grade mode.')
+  if (!ALLOWED_MODES.has(body.mode)) {
+    throw new Error('Choose generate, grade, or summarize mode.')
   }
   if (typeof body.notes !== 'string' || body.notes.trim().length === 0) {
     throw new Error('Add study notes first.')
   }
-  if (body.notes.length > MAX_NOTES_CHARS) {
-    throw new Error(`Notes are too long; the limit is ${MAX_NOTES_CHARS.toLocaleString()} characters.`)
+  const notesLimit = body.mode === 'summarize' ? MAX_SUMMARY_CHARS : MAX_NOTES_CHARS
+  if (body.notes.length > notesLimit) {
+    throw new Error(`Notes are too long; the limit is ${notesLimit.toLocaleString()} characters.`)
   }
 
   const result = { ...body, notes: body.notes.trim() }
   if (body.provider !== undefined && body.provider !== null) {
-    const { id, apiKey, model } = body.provider
-    if (!Object.hasOwn(PROVIDER_MODELS, id)) {
-      throw new Error('Choose DeepSeek or NVIDIA NIM as the provider.')
+    if (typeof body.provider !== 'object' || !ALLOWED_PROVIDERS.has(body.provider.id)) {
+      throw new Error('Choose a supported AI provider.')
     }
-    if (typeof apiKey !== 'string' || apiKey.trim().length === 0 || apiKey.length > 512) {
-      throw new Error('Enter a valid provider API key.')
+    if ('apiKey' in body.provider || 'model' in body.provider) {
+      throw new Error('Provider keys and model settings are configured on the server.')
     }
-    if (typeof model !== 'string' || model.trim().length === 0 || model.length > 160) {
-      throw new Error('Enter a valid model name.')
-    }
-    result.provider = { id, apiKey: apiKey.trim(), model: model.trim() }
+    result.provider = { id: body.provider.id }
   }
   if (body.mode === 'grade') {
     for (const field of ['question', 'reference', 'answer']) {
@@ -48,10 +45,10 @@ export function validateQuizRequest(body) {
         throw new Error(`The ${field} must be text no longer than ${MAX_ANSWER_CHARS.toLocaleString()} characters.`)
       }
     }
-  } else {
+  } else if (body.mode === 'generate') {
     const count = Number(body.count ?? 8)
-    if (!Number.isInteger(count) || count < 1 || count > 12) {
-      throw new Error('Question count must be a whole number from 1 to 12.')
+    if (!Number.isInteger(count) || count < 1 || count > MAX_QUESTIONS_PER_BATCH) {
+      throw new Error(`Question count must be a whole number from 1 to ${MAX_QUESTIONS_PER_BATCH} per batch.`)
     }
     const types = body.types === undefined ? ['mcq', 'written'] : body.types
     if (!Array.isArray(types) || types.length === 0 || types.some((type) => !ALLOWED_TYPES.has(type))) {
@@ -59,6 +56,8 @@ export function validateQuizRequest(body) {
     }
     result.count = count
     result.types = [...new Set(types)]
+  } else if (!body.provider) {
+    throw new Error('Summaries require an AI provider.')
   }
   return result
 }
@@ -104,18 +103,25 @@ export function makeLocalQuiz(notes, count = 8, types = ['mcq', 'written']) {
         word.toLowerCase() !== term.toLowerCase() &&
         !new RegExp(`\\b${escapeRegExp(word)}\\b`, 'i').test(sentence),
       ).slice(0, 3)
-      if (distractors.length < 3) type = safeTypes.find((candidate) => candidate !== 'mcq') || 'written'
-      else options = [term, ...distractors].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      if (distractors.length < 3) {
+        const alternative = safeTypes.find((candidate) => candidate !== 'mcq')
+        if (!alternative) continue
+        type = alternative
+      } else {
+        options = [term, ...distractors].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      }
     }
 
-    const prompt = type === 'written'
-      ? `Explain this point in your own words: “${sentence}”`
-      : `Complete the sentence from your notes: “${masked}”`
+    const prompt = type === 'flashcard'
+      ? `Explain ${term} as it is used in your notes.`
+      : type === 'written'
+        ? `Explain this point in your own words: “${sentence}”`
+        : `Complete the sentence from your notes: “${masked}”`
     questions.push({
       type,
       prompt,
       ...(type === 'mcq' ? { options } : {}),
-      answer: type === 'written' ? sentence : term,
+      answer: type === 'mcq' ? term : sentence,
       explanation: sentence,
       quote: sentence,
     })

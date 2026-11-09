@@ -1,8 +1,8 @@
 // src/pages/Study.tsx
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
-import { gradeAnswer, makeQuiz } from '../lib/quizApi'
+import { gradeAnswer, makeQuiz, questionCountForMaterial, QUIZ_PROVIDERS } from '../lib/quizApi'
 import { recordStudyCompletion } from '../lib/gameProgress'
 import type { QuizQuestion, QuizProvider, QuizProviderConfig, QuizType } from '../lib/quizApi'
 import { BookOpen, Check, FileText, KeyRound, Leaf, Sprout, TreePine } from 'lucide-react'
@@ -13,30 +13,20 @@ const TREE_STAGES = [
   { label: 'Growing fern', Icon: Leaf },
   { label: 'Mighty tree', Icon: TreePine },
 ]
-const COUNT = 10 // raise for longer sessions; generating takes longer
-
 type Reveal = { ok: boolean; verdict: string; feedback?: string; best: string }
 
 export default function Study() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { materials } = useAppStore()
 
-  const initialId = searchParams.get('materialId') || (materials.length > 0 ? materials[0].id : '')
-  const [selectedMatId, setSelectedMatId] = useState(initialId)
-
-  useEffect(() => {
-    const id = searchParams.get('materialId')
-    if (id) setSelectedMatId(id)
-  }, [searchParams])
+  const selectedMatId = searchParams.get('materialId') || materials[0]?.id || ''
 
   const activeMaterial = materials.find((m) => m.id === selectedMatId)
 
   const [phase, setPhase] = useState<'setup' | 'studying'>('setup')
   const [qTypes, setQTypes] = useState({ flashcard: true, mcq: true, written: true })
-  const [providerId, setProviderId] = useState<'local' | QuizProvider>('local')
-  const [providerApiKey, setProviderApiKey] = useState('')
-  const [providerModel, setProviderModel] = useState('deepseek-chat')
+  const [providerId, setProviderId] = useState<'local' | QuizProvider>('nvidia')
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [source, setSource] = useState('')
   const [round, setRound] = useState(1)
@@ -46,6 +36,7 @@ export default function Study() {
   const [sure, setSure] = useState(true)
   const [reveal, setReveal] = useState<Reveal | null>(null)
   const [busy, setBusy] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState({ completed: 0, total: 0 })
   const [checking, setChecking] = useState(false)
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')
@@ -54,10 +45,11 @@ export default function Study() {
   const [treeExp, setTreeExp] = useState(0)
   const review = useRef<QuizQuestion[]>([]) // questions that come back once more
   const completionRecorded = useRef(false)
+  const seenQuotes = useRef(new Set<string>())
 
   function getProviderConfig(): QuizProviderConfig | undefined {
     if (providerId === 'local') return undefined
-    return { id: providerId, apiKey: providerApiKey.trim(), model: providerModel.trim() }
+    return { id: providerId }
   }
 
   if (!activeMaterial) {
@@ -75,6 +67,7 @@ export default function Study() {
     setWrittenAnswer('')
     setSure(true)
     setReveal(null)
+    setErr('')
   }
 
   async function handleStartStudy() {
@@ -85,19 +78,23 @@ export default function Study() {
       setErr('This material has too little text to make questions from. Add more notes or a fuller file.')
       return
     }
-    if (providerId !== 'local' && !providerApiKey.trim()) {
-      setErr('Enter your provider API key, or choose Local to make questions without an AI provider.')
-      return
-    }
-    if (providerId !== 'local' && !providerModel.trim()) {
-      setErr('Enter a model name for the selected provider.')
-      return
-    }
     setBusy(true)
     setErr('')
+    setNote('')
+    setGenerationProgress({ completed: 0, total: 0 })
     try {
-      const r = await makeQuiz(activeMaterial.content, COUNT, types, getProviderConfig())
-      setNote(r.truncated ? 'This is a long document, so the questions come from the first part of it.' : '')
+      const r = await makeQuiz(
+        activeMaterial.content,
+        types,
+        getProviderConfig(),
+        (completed, total) => setGenerationProgress({ completed, total }),
+        [...seenQuotes.current],
+      )
+      r.questions.forEach((question) => seenQuotes.current.add(question.quote))
+      const messages = []
+      if (r.truncated) messages.push(`Created ${r.questions.length} of about ${r.target} planned questions.`)
+      messages.push(...r.warnings)
+      setNote(messages.join(' '))
       setSource(activeMaterial.content)
       setQuestions(r.questions)
       setTotal(r.questions.length)
@@ -140,8 +137,12 @@ export default function Study() {
       try {
         const g = await gradeAnswer(source, q, writtenAnswer, getProviderConfig())
         r = { ok: g.verdict === 'Got it', verdict: g.verdict, feedback: g.feedback, best: g.best_fit || q.answer }
-      } catch {
-        r = { ok: false, verdict: 'Not yet', feedback: 'We couldn’t grade that one. Compare it with the best answer below.', best: q.answer }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not grade this answer.'
+        setErr(message)
+        setReveal({ ok: false, verdict: 'Could not grade this answer', feedback: message, best: q.answer })
+        setChecking(false)
+        return
       }
       setChecking(false)
     }
@@ -203,7 +204,10 @@ export default function Study() {
           <select
             className="field"
             value={selectedMatId}
-            onChange={(e) => setSelectedMatId(e.target.value)}
+            onChange={(e) => {
+              seenQuotes.current.clear()
+              setSearchParams({ materialId: e.target.value })
+            }}
             style={{ marginTop: '8px', fontWeight: 'bold', border: '1px solid var(--border)' }}
           >
             {materials.map((m) => (
@@ -223,44 +227,22 @@ export default function Study() {
               value={providerId}
               onChange={(event) => {
                 const next = event.target.value
-                if (next !== 'local' && next !== 'deepseek' && next !== 'nvidia') return
-                setProviderId(next)
-                setProviderApiKey('')
-                setProviderModel(next === 'nvidia' ? 'meta/llama-3.3-70b-instruct' : 'deepseek-chat')
+                if (next === 'local') {
+                  setProviderId(next)
+                  return
+                }
+                const provider = QUIZ_PROVIDERS.find((option) => option.id === next)
+                if (provider) setProviderId(provider.id)
               }}
             >
               <option value="local">Local — no external AI or API key</option>
-              <option value="deepseek">DeepSeek — use my API key</option>
-              <option value="nvidia">NVIDIA NIM — use my API key</option>
+              {QUIZ_PROVIDERS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
           {providerId !== 'local' && (
-            <>
-              <label className="provider-field">
-                <span>{providerId === 'deepseek' ? 'DeepSeek API key' : 'NVIDIA API key'}</span>
-                <input
-                  className="field"
-                  type="password"
-                  autoComplete="new-password"
-                  value={providerApiKey}
-                  onChange={(event) => setProviderApiKey(event.target.value)}
-                  placeholder="Enter your key for this session"
-                />
-              </label>
-              <label className="provider-field">
-                <span>Model ID</span>
-                <input
-                  className="field"
-                  value={providerModel}
-                  onChange={(event) => setProviderModel(event.target.value)}
-                  placeholder={providerId === 'deepseek' ? 'deepseek-chat' : 'meta/llama-3.3-70b-instruct'}
-                />
-              </label>
-              <p className="provider-note">
-                Your key stays in this page’s memory and is not saved. Study notes and written answers are sent
-                through this app’s quiz endpoint to the selected provider. Use only a deployment you trust.
-              </p>
-            </>
+            <p className="provider-note">
+              Your selected AI provider processes study requests through the app’s server; provider keys are never sent to your browser. You can use AI as a guest; daily limits apply.
+            </p>
           )}
         </section>
 
@@ -283,8 +265,15 @@ export default function Study() {
         </div>
 
         <button className="btn-primary" style={{ marginTop: '24px' }} disabled={busy} onClick={handleStartStudy}>
-          {busy ? 'Reading your material…' : `Make ${COUNT} questions and start`}
+          {busy
+            ? `Making questions${generationProgress.total ? `… ${generationProgress.completed}/${generationProgress.total}` : '…'}`
+            : seenQuotes.current.size
+              ? 'Make next set from unseen notes'
+              : `Make about ${questionCountForMaterial(activeMaterial.content)} questions`}
         </button>
+        <p className="hint">Question count scales with material size (about 1 per 250 words), up to 100 per study set.</p>
+        {seenQuotes.current.size > 0 && <p className="hint">Previously used source passages are skipped when making the next set.</p>}
+        {note && <p className="hint" role="status">{note}</p>}
         {err && <p className="err" role="alert">{err}</p>}
       </div>
     )
@@ -304,7 +293,7 @@ export default function Study() {
         </p>
         <div className="row page-actions">
           {left > 0 && <button className="btn-primary" onClick={again}>Try the tricky ones again</button>}
-          <button className="btn-secondary" onClick={() => { review.current = []; setPhase('setup') }}>Study Again</button>
+          <button className="btn-secondary" onClick={() => { review.current = []; setPhase('setup') }}>Make another set from unseen material</button>
           <button className="btn-secondary" onClick={() => navigate('/resources')}>Back to Study Desk</button>
         </div>
       </div>
