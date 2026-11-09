@@ -1,132 +1,112 @@
-# FlowState: Study Helper for ADHD Students
+# FlowState
 
-FlowState turns a student's own notes into short, low-pressure study sessions. Students upload PDFs, Word files, text or photos of their notes. The app generates bite-size questions and summaries with source excerpts, and adapts each session to the student's energy level.
+FlowState is a study app that turns a student's own notes into short, low-pressure study sessions. It supports guest accounts, saved study materials, AI generated questions and summaries, accessibility preferences, and check-in games.
 
-- **Start without an account.** Students can study as a guest in one tap and add an email later to keep their notes across devices.
-- **Comfort settings.** Light/dark mode, six colour palettes, seven reading fonts (including OpenDyslexic and Atkinson Hyperlegible), adjustable text size and line spacing, and a low-stimulation mode that turns off motion and bright accents.
-- **Check-in games.** One-minute games (mood weather, box breathing, odd one out, memory pairs) help students settle in before studying.
+The browser app is built with React, TypeScript, and Vite. The API is Python/FastAPI. Supabase provides authentication, database, and private file storage. NVIDIA NIM is the only remote AI inference provider. File text extraction and OCR run in the browser.
 
-## Tech stack
+## Run the app on your computer
 
-| Layer | Tools |
-|---|---|
-| Frontend | React 19, Vite, TypeScript, React Router (hash routing), Zustand |
-| Styling | Tailwind CSS v4 (no Preflight), shadcn/ui, [Kokonut UI](https://kokonutui.com), Motion |
-| Auth and data | Supabase: anonymous and email/password auth, Postgres, Storage |
-| API and AI | FastAPI in `ai_service/`; NVIDIA NIM calls, Supabase auth/quota, and safety classification all run in Python |
-| File parsing | pdf.js, mammoth (DOCX) and Tesseract.js (OCR), all running in the browser |
+### 1. Install the prerequisites
 
-## Run locally
+- **Git**, to clone the repository.
+- **Docker Desktop** with Docker Compose, for the shortest setup; or install **Node.js 22+** and **Python 3.12+** to run the frontend and backend separately.
+- A **Supabase project** for account sign-in, cloud saving, and AI access.
+- An **NVIDIA API key** for AI generated questions, grading, and summaries.
 
-1. Copy `.env.example` to `.env.local`. Set the Supabase URL and anon key, then add `NVIDIA_API_KEY`. Keep the API key server-only and never add a `VITE_` prefix to it.
-2. In Supabase, enable anonymous sign-ins and email/password signup with email confirmation. Run `supabase/schema.sql` for a new project. For an existing project, apply `supabase/migrations/02_ai_material_overviews.sql`.
-3. Install backend dependencies with `python -m pip install -r requirements.txt`.
-4. In one terminal, start the Python API with `python -m uvicorn ai_service.main:app --reload --host 127.0.0.1 --port 8000`.
-5. In a second terminal, install frontend dependencies with `npm install`, then start Vite with `npm run dev`. Vite forwards `/api` requests to the Python API.
+You can launch the UI without Supabase, but cloud sync and AI features need Supabase configured. AI features also need the NVIDIA key.
 
-The Python API uses NVIDIA NIM for summaries, quizzes, and grading. It checks the Supabase session and daily AI allowance before sending requests to NVIDIA. Guest quotas are tied to the anonymous Supabase session and may reset if that session is lost.
+### 2. Clone the repository
 
-### Environment variables
+Open PowerShell, Terminal, or Git Bash and run:
 
-| Variable | Where | Purpose |
-|---|---|---|
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Browser | Supabase project (the anon key is public; protect data with RLS) |
-| `VITE_API_BASE_URL` | Browser build | Optional separate Python API origin; leave blank for Docker Compose's `/api` proxy or Vite's development proxy |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Python API | Session checks and the daily AI allowance |
-| `NVIDIA_API_KEY`, `NVIDIA_MODEL` | Python API | NVIDIA NIM (`AI_API_KEY` and `AI_MODEL` are accepted aliases) |
-| `FRONTEND_ORIGINS` | Python API | Comma-separated origins allowed when hosting the browser UI separately |
-| `API_PROXY_TARGET` | Vite dev server | Python API origin for the local `/api` proxy; defaults to `http://127.0.0.1:8000` |
+```sh
+git clone https://github.com/jessmdaniel-kenya/Study-helper-for-ADHD-students.git
+cd Study-helper-for-ADHD-students
+```
 
-### Docker
+To work on a particular branch instead of the repository's default branch, list available branches and check one out:
 
-Set `VITE_SUPABASE_URL` (or `SUPABASE_URL`), `VITE_SUPABASE_ANON_KEY` (or `SUPABASE_ANON_KEY`), and `NVIDIA_API_KEY` in the project `.env` file. Then start both containers with:
+```sh
+git branch --all
+git switch <branch-name>
+```
+
+### 3. Configure Supabase and NVIDIA
+
+1. In Supabase Authentication settings, enable **Anonymous sign-ins** and **Email/password** sign-in.
+2. In the Supabase SQL Editor, run [`supabase/schema.sql`](supabase/schema.sql) once for a new project. For an existing database, read the migration guidance in [the Supabase guide](docs/SUPABASE.md) before applying any migration.
+3. Copy the example environment file. For Docker, create `.env`; for separate local frontend and backend processes, create `.env.local`:
+
+   **PowerShell, Docker:**
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   **PowerShell, local development:**
+
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+   On macOS/Linux or Git Bash, use `cp .env.example .env` or `cp .env.example .env.local`.
+
+4. Edit the copied file and set the following values:
+
+   ```dotenv
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-supabase-anon-key
+   NVIDIA_API_KEY=your-nvidia-api-key
+   ```
+
+   Find the Supabase URL and anon/public key in your Supabase project's API settings. Get `NVIDIA_API_KEY` from your NVIDIA NIM account. The example file already sets the default NVIDIA model and local ports; `NVIDIA_MODEL` can be changed to another model enabled for your NVIDIA account.
+
+   The Supabase anon key is used by the browser and is expected to be public; database access must be protected by the SQL row-level security policies. The NVIDIA key is secret: keep it only in `.env` or `.env.local`, never add a `VITE_` prefix, and never commit it.
+
+### 4. Start both services
+
+#### Option A: Docker Compose
+
+With Docker Desktop running and `.env` configured, run this from the repository root:
 
 ```sh
 docker compose up --build
 ```
 
-Open <http://localhost:8080>. Docker Compose builds and runs the Python API and the Nginx frontend, waits for the API health check, and routes frontend `/api` requests to the backend. Material overviews are processed in 20,000-character sections, up to 1,000,000 characters total. The frontend port can be changed with `FRONTEND_PORT`. The NVIDIA key is passed only to the backend container.
+Docker builds and starts the Python API and the Nginx frontend. Compose waits for the API health check before starting the frontend. Open <http://localhost:8080>. If port 8080 is already in use, change `FRONTEND_PORT` in `.env` and repeat the command. Stop the running app with Ctrl+C; use `docker compose down` to remove the containers and network.
 
-## App flow and pages
+#### Option B: Run frontend and backend directly
 
-| Route | Page |
-|---|---|
-| `/#/` | Landing page with hero, how-it-works steps and features. "Continue as guest" starts an anonymous session. |
-| `/#/start` | Sign-in page with Guest, Sign in and Join tabs (`?mode=guest`, `signin` or `signup`). Join upgrades the current guest session, so guest notes carry over to the account. |
-| `/#/home` | Dashboard. Guests see a prompt to save their progress. |
-| `/#/study`, `/#/resources`, `/#/energy`, `/#/feed` | Study sessions, uploaded materials, energy check-in and community |
-| `/#/game` | Check-in games and the Tinker's Workbench (`?tab=workbench`) |
+Use two terminals from the repository root. First, install Python dependencies and start the API:
 
-Visiting the landing page does not create a session. A guest session starts only when the student chooses "Continue as guest" or opens an in-app page directly.
-
-## Display and accessibility settings
-
-The **Display** menu in the top bar and the sun/moon toggle control every display preference. The landing and sign-in pages have the same toggle and a low-stimulation switch. All preferences are stored in `src/lib/preferences.ts`, saved in `localStorage` and applied before the first paint.
-
-- **Theme:** Light, Dark or System, plus six colour palettes. Tailwind's `dark:` variant follows the `.dark` class on `<html>`.
-- **Reading font:** Inter, Atkinson Hyperlegible, Lexend, OpenDyslexic, Literata, Comic Neue or the device font. Fonts are bundled with `@fontsource` and download only when selected.
-- **Text size:** S, M, L or XL; scales page content. **Line spacing:** Compact, Normal or Relaxed.
-- **Low stimulation:** turns off animations, spotlights, particle bursts and bright accents. The operating system's reduced-motion setting is respected as well.
-
-## Check-in games
-
-These games are on the Games page. History is stored on the device in `src/lib/checkins.ts` and is not synced to the account.
-
-- **Mood weather:** pick an "inner weather" and an energy level. The game suggests a study pace and can open Study at that pace.
-- **Box breathing:** three guided 4-4-4-4 breaths.
-- **Odd one out:** five rounds of spotting the different icon.
-- **Memory pairs:** find four matching pairs.
-
-The games have no timers or penalties. The page shows today's check-ins and a day streak.
-
-## UI components
-
-- shadcn/ui is configured in `components.json`; components live in `src/components/ui/`.
-- Kokonut UI is registered as `@kokonutui`; components live in `src/components/kokonutui/`. Add more with `npx shadcn@latest add @kokonutui/<name>`.
-- The legacy stylesheet (`src/index.css`) sits in Tailwind's `base` layer, so utility classes override it. Tailwind's Preflight reset is off; pages built with Tailwind wrap their content in `.tw-scope` to reset native button and fieldset styles.
-
-> **Local patches:** `src/components/kokonutui/particle-button.tsx` re-measures its label after web fonts load, and `slide-text-button.tsx` uses React Router instead of `next/link`. Re-adding either file with `--overwrite` removes these changes.
-
-Example: an async button that shows a spinner, then a check mark with a particle burst, or an error shake:
-
-```tsx
-import ParticleButton from '@/components/kokonutui/particle-button'
-
-<ParticleButton
-  pendingLabel="Saving"
-  successLabel="Saved"
-  particles={!calm}
-  onClick={async () => { await saveNotes() }}
->
-  Save notes
-</ParticleButton>
+```sh
+python -m pip install -r requirements.txt
+python -m uvicorn ai_service.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## Study content and file handling
+In the second terminal, install JavaScript dependencies and start the frontend:
 
-- Study questions are generated in batches sized to the document, targeting about one question per 250 words. A study set is capped at 100 questions; the daily AI allowance is 150 questions.
-- Material summaries and overviews are generated on demand and saved with the material. Each key point includes a source excerpt, and the daily AI summary allowance is 10.
-- PDF, DOCX, TXT, Markdown and image uploads are parsed in the browser. Scanned PDFs and images use OCR; original uploaded files are stored privately when Supabase storage is configured.
+```sh
+npm install
+npm run dev
+```
 
-## Training data preparation
+Open the local URL printed by Vite (usually <http://localhost:5173>). Vite proxies `/api` requests to the Python service at `http://127.0.0.1:8000`. The backend health endpoint is <http://127.0.0.1:8000/health>.
 
-The project does not train a model automatically. API keys authorize inference requests; fine-tuning requires a provider that offers it, an eligible base model and suitable examples. No training examples are included. Prepare a UTF-8 JSONL file with one object per line, using `instruction`, optional `input`, and `output` string fields. Then convert it to chat-completion JSONL with:
+## First use
 
-`python -m ai_service.prepare_dataset --input path\to\examples.jsonl --output path\to\prepared.jsonl`
-
-Review and anonymize data before using it for fine-tuning. Fine-tuning data formats and model eligibility vary by provider, so this generic chat JSONL may need another conversion step. The script only validates and converts local files; it does not upload data or start training.
-
-## Scripts and tests
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Start the frontend; `/api` is proxied to FastAPI |
-| `npm run build` | Type-check and build the frontend into `dist/` |
-| `npm run lint` | Lint the frontend with oxlint |
-| `python -m uvicorn ai_service.main:app --reload --port 8000` | Start the Python API for local development |
-| `python -m ai_service.prepare_dataset --help` | Show local training-data preparation options |
+Open the app and choose **Continue as guest** to start a study session, or create/sign into an account. Add a PDF, DOCX, TXT, Markdown, or image of notes on the Resources page. The app extracts text in the browser; scanned PDFs and images use OCR. Study questions, grading, and summaries require a working Supabase session and NVIDIA API key.
 
 ## Troubleshooting
 
-- **NVIDIA API key errors:** set `NVIDIA_API_KEY` in `.env.local` and restart `npm run dev`.
-- **Theme or font changes don't appear:** preferences are stored per browser in `localStorage`; use **Reset** in the Display menu.
+- **AI says Supabase settings are missing:** check that the URL and anon key are set in the env file read by the backend, then restart the services.
+- **AI says a quota function or material overview migration is missing:** for a new database, make sure `supabase/schema.sql` ran. For an older database, follow [the migration guide](docs/SUPABASE.md).
+- **NVIDIA configuration or model error:** check `NVIDIA_API_KEY` and confirm that the configured model is enabled for the NVIDIA account.
+- **The browser cannot reach the API:** confirm the backend is running. For Docker, inspect `docker compose ps` and `docker compose logs backend`; for local development, verify port 8000 or set `API_PROXY_TARGET` in `.env.local`.
+- **PDF worker fails to load:** open the app through the Vite or Docker web server. Do not open the built `index.html` directly from disk.
+
+## Documentation
+
+See [the documentation index](docs/INDEX.md) for guides to the architecture, study/AI flow, Supabase, and training data preparation.

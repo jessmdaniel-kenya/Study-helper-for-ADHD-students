@@ -28,3 +28,6 @@ prepared-training-data/
 .env.local
 node_modules/
 dist/
+
+# Python virtual environment
+.venv/
