@@ -1,5 +1,6 @@
 import { ensureSession } from './auth'
 import { readApiResponse } from './apiResponse'
+import type { EnergyLevel } from '../stores/useAppStore'
 
 export type QuizType = 'flashcard' | 'mcq' | 'written'
 
@@ -17,6 +18,7 @@ export type Grade = { verdict: string; feedback: string; best_fit: string }
 export type MaterialOverview = {
   overview: string
   summary: string
+  summaryBlocks?: ({ type: 'heading'; level: number; text: string } | { type: 'paragraph'; text: string } | { type: 'list'; ordered: boolean; items: string[] })[]
   keyPoints: { point: string; quote: string }[]
   keyTerms: { term: string; definition: string }[]
   studyPlan: string[]
@@ -27,9 +29,15 @@ const MAX_CHUNK_CHARS = 18_000
 const MAX_CHUNK_WORDS = 2_500
 const WORDS_PER_QUESTION = 250
 
-export function questionCountForMaterial(notes: string) {
+export function questionCountForMaterial(notes: string, energyLevel: EnergyLevel | null = null) {
   const words = notes.trim().split(/\s+/).filter(Boolean).length
-  return Math.min(MAX_QUESTIONS_PER_STUDY_SET, Math.max(3, Math.ceil(words / WORDS_PER_QUESTION)))
+  const standardCount = Math.max(3, Math.ceil(words / WORDS_PER_QUESTION))
+  const adjustedCount = energyLevel === 'Low'
+    ? Math.max(2, Math.ceil(standardCount * 0.6))
+    : energyLevel === 'Wired'
+      ? Math.ceil(standardCount * 1.25)
+      : standardCount
+  return Math.min(MAX_QUESTIONS_PER_STUDY_SET, adjustedCount)
 }
 
 function splitMaterial(notes: string) {
@@ -101,6 +109,7 @@ export async function makeQuiz(
   types: QuizType[] = ['mcq', 'written'],
   onProgress?: (completed: number, total: number) => void,
   excludedQuotes: string[] = [],
+  energyLevel: EnergyLevel | null = null,
 ) {
   let remainingNotes = notes.replace(/\s+/g, ' ')
   for (const quote of excludedQuotes) {
@@ -108,7 +117,7 @@ export async function makeQuiz(
     if (normalizedQuote) remainingNotes = remainingNotes.replace(new RegExp(escapeRegExp(normalizedQuote), 'gi'), ' ')
   }
   const chunks = splitMaterial(remainingNotes)
-  const target = questionCountForMaterial(remainingNotes)
+  const target = questionCountForMaterial(remainingNotes, energyLevel)
   const allocations = allocateQuestions(chunks, target)
   const questions: QuizQuestion[] = []
   const warnings: string[] = []
@@ -121,7 +130,7 @@ export async function makeQuiz(
     if (!count) continue
     try {
       const batch = await call<{ questions: QuizQuestion[]; truncated: boolean }>(
-        { mode: 'generate', notes: chunks[index], count, types },
+        { mode: 'generate', notes: chunks[index], count, types, energyLevel: energyLevel || 'Medium' },
       )
       for (const question of batch.questions) {
         const quote = question.quote.trim().toLocaleLowerCase()

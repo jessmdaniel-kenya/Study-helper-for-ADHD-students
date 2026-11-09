@@ -18,14 +18,18 @@ type Reveal = { ok: boolean; verdict: string; feedback?: string; best: string }
 export default function Study() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { materials } = useAppStore()
+  const { materials, energyLevel } = useAppStore()
 
   const selectedMatId = searchParams.get('materialId') || materials[0]?.id || ''
 
   const activeMaterial = materials.find((m) => m.id === selectedMatId)
 
   const [phase, setPhase] = useState<'setup' | 'studying'>('setup')
-  const [qTypes, setQTypes] = useState({ flashcard: true, mcq: true, written: true })
+  const [qTypes, setQTypes] = useState(() => energyLevel === 'Low'
+    ? { flashcard: true, mcq: true, written: false }
+    : energyLevel === 'Wired'
+      ? { flashcard: false, mcq: true, written: true }
+      : { flashcard: true, mcq: true, written: true })
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [source, setSource] = useState('')
   const [round, setRound] = useState(1)
@@ -82,6 +86,7 @@ export default function Study() {
         types,
         (completed, total) => setGenerationProgress({ completed, total }),
         [...seenQuotes.current],
+        energyLevel,
       )
       r.questions.forEach((question) => seenQuotes.current.add(question.quote))
       const messages = []
@@ -213,7 +218,7 @@ export default function Study() {
 
         <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
           <div className="badge">SESSION FORMATS</div>
-          <p className="sub-text">Pick what to practise. Every question comes from your document, and every answer is explained.</p>
+        <p className="sub-text">Your {energyLevel?.toLowerCase() || 'balanced'} energy setting adjusts the question count and challenge. You can change the suggested formats below.</p>
           <div className="row">
             {chips.map(([key, label]) => (
               <button
@@ -234,7 +239,7 @@ export default function Study() {
             ? `Making questions${generationProgress.total ? `… ${generationProgress.completed}/${generationProgress.total}` : '…'}`
             : seenQuotes.current.size
               ? 'Make next set from unseen notes'
-              : `Make about ${questionCountForMaterial(activeMaterial.content)} questions`}
+              : `Make about ${questionCountForMaterial(activeMaterial.content, energyLevel)} questions`}
         </button>
         <p className="hint">Question count scales with material size (about 1 per 250 words), up to 100 per study set.</p>
         {seenQuotes.current.size > 0 && <p className="hint">Previously used source passages are skipped when making the next set.</p>}

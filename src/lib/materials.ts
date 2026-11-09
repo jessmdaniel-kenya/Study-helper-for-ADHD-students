@@ -42,6 +42,15 @@ function isMaterialOverview(value: unknown): value is MaterialOverview {
   const overview = value as Record<string, unknown>
   return typeof overview.overview === 'string' &&
     typeof overview.summary === 'string' &&
+    (overview.summaryBlocks === undefined || (
+      Array.isArray(overview.summaryBlocks) && overview.summaryBlocks.every((item) => {
+        if (!item || typeof item !== 'object') return false
+        const block = item as Record<string, unknown>
+        return (block.type === 'heading' && Number.isInteger(block.level) && typeof block.text === 'string') ||
+          (block.type === 'paragraph' && typeof block.text === 'string') ||
+          (block.type === 'list' && typeof block.ordered === 'boolean' && Array.isArray(block.items) && block.items.every((entry) => typeof entry === 'string'))
+      })
+    )) &&
     Array.isArray(overview.keyPoints) &&
     overview.keyPoints.every((item) =>
       item && typeof item === 'object' &&

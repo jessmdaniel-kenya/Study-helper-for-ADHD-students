@@ -200,7 +200,23 @@ export default function Resources() {
                   <p>{m.overview.overview}</p>
                   <details>
                     <summary>Read summary and study guide</summary>
-                    <p>{m.overview.summary}</p>
+                    {m.overview.summaryBlocks?.length
+                      ? <div className="material-summary">
+                        {m.overview.summaryBlocks.map((block, index) => {
+                          if (block.type === 'heading') {
+                            const Heading = `h${Math.min(4, Math.max(2, block.level))}` as 'h2' | 'h3' | 'h4'
+                            return <Heading key={`${index}-${block.text}`}>{block.text}</Heading>
+                          }
+                          if (block.type === 'list') {
+                            const List = block.ordered ? 'ol' : 'ul'
+                            return <List key={`${index}-${block.items[0]}`}>
+                              {block.items.map((item, itemIndex) => <li key={`${itemIndex}-${item}`}>{item}</li>)}
+                            </List>
+                          }
+                          return <p key={`${index}-${block.text}`}>{block.text}</p>
+                        })}
+                      </div>
+                      : <p className="material-summary-legacy">{m.overview.summary}</p>}
                     {m.overview.keyPoints.length > 0 && (
                       <>
                         <strong>Key points</strong>

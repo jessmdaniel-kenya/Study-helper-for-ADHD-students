@@ -1,6 +1,7 @@
 // src/pages/Feed.tsx
 import { useState } from 'react'
 import { Heart, MessageCircle, Send } from 'lucide-react'
+import { reviewCommunityText, type SafetyReview } from '../lib/safetyApi'
 
 interface Post {
   id: string;
@@ -16,21 +17,45 @@ export default function Feed() {
     { id: '2', author: 'Bahati M.', content: 'Shared an exhaustive flashcard set for structural principles. Good luck everyone!', likes: 9, time: '4h ago' }
   ])
   const [newPost, setNewPost] = useState('')
+  const [reviewing, setReviewing] = useState(false)
+  const [safetyReview, setSafetyReview] = useState<SafetyReview | null>(null)
+  const [reviewError, setReviewError] = useState('')
 
-  const handleCreatePost = (e: React.FormEvent) => {
+  const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newPost.trim()) return
-
-    const post: Post = {
-      id: Date.now().toString(),
-      author: 'You (Student)',
-      content: newPost,
-      likes: 0,
-      time: 'Just now'
+    const content = newPost.trim()
+    if (!content || reviewing) return
+    if (content.length > 2_000) {
+      setReviewError('Posts must be 2,000 characters or fewer.')
+      return
     }
 
-    setPosts([post, ...posts])
-    setNewPost('')
+    setReviewing(true)
+    setReviewError('')
+    setSafetyReview(null)
+    try {
+      const result = await reviewCommunityText(content)
+      if (result.flagged) {
+        setSafetyReview(result)
+        return
+      }
+
+      const post: Post = {
+        id: Date.now().toString(),
+        author: 'You (Student)',
+        content,
+        likes: 0,
+        time: 'Just now',
+      }
+      setPosts((current) => [post, ...current])
+      setNewPost('')
+    } catch (error) {
+      setReviewError(error instanceof Error
+        ? `The safety check could not run, so your draft was not posted. ${error.message}`
+        : 'The safety check could not run, so your draft was not posted. Please try again.')
+    } finally {
+      setReviewing(false)
+    }
   }
 
   return (
@@ -46,9 +71,21 @@ export default function Feed() {
             placeholder="Share a study tip or question with the group..." 
             rows={3}
             value={newPost}
-            onChange={e => setNewPost(e.target.value)}
+            maxLength={2_000}
+            onChange={e => { setNewPost(e.target.value); setSafetyReview(null); setReviewError('') }}
           ></textarea>
-          <button type="submit" className="btn-primary"><Send size={16} aria-hidden="true" /> Post to community</button>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="hint">{newPost.length}/2,000 · posts are checked for supportive wording</span>
+            <button type="submit" className="btn-primary" disabled={reviewing || !newPost.trim()}>
+              <Send size={16} aria-hidden="true" /> {reviewing ? 'Checking post…' : 'Post to community'}
+            </button>
+          </div>
+          {safetyReview && (
+            <p className="err" role="alert">
+              This draft was not posted. {safetyReview.message} Edit the wording and try again.
+            </p>
+          )}
+          {reviewError && <p className="err" role="alert">{reviewError}</p>}
         </form>
       </section>
 

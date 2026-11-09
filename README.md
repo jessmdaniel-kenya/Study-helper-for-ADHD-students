@@ -99,6 +99,8 @@ Open the local URL printed by Vite (usually <http://localhost:5173>). Vite proxi
 
 Open the app and choose **Continue as guest** to start a study session, or create/sign into an account. Add a PDF, DOCX, TXT, Markdown, or image of notes on the Resources page. The app extracts text in the browser; scanned PDFs and images use OCR. Study questions, grading, and summaries require a working Supabase session and NVIDIA API key.
 
+The energy check-in adjusts the suggested question formats, planned session size, and question challenge. New community-feed drafts are checked by the local rules-based safety filter before posting.
+
 ## Troubleshooting
 
 - **AI says Supabase settings are missing:** check that the URL and anon key are set in the env file read by the backend, then restart the services.

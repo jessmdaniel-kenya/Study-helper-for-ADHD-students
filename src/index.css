@@ -731,6 +731,56 @@ input[type='file']::file-selector-button {
   line-height: 1.65;
 }
 
+.material-overview > p {
+  line-height: 1.75;
+  white-space: pre-line;
+}
+
+.material-overview details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.material-summary {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 18px;
+  line-height: 1.75;
+}
+
+.material-summary h2,
+.material-summary h3,
+.material-summary h4 {
+  margin: 8px 0 0;
+  color: var(--a1);
+  line-height: 1.35;
+}
+
+.material-summary p,
+.material-summary ul,
+.material-summary ol,
+.material-summary blockquote {
+  margin: 0;
+}
+
+.material-summary ul,
+.material-summary ol {
+  display: grid;
+  gap: 7px;
+  padding-left: 24px;
+}
+
+.material-summary li {
+  padding-left: 3px;
+}
+
+.material-summary-legacy {
+  margin: 14px 0 18px !important;
+  white-space: pre-line;
+  line-height: 1.75;
+}
+
 .material-overview h3,
 .material-overview p {
   margin: 0 0 8px;

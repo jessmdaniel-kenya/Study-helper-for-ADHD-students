@@ -24,7 +24,8 @@ The browser extracts text from uploaded documents. Supabase stores material text
 | `src/pages/` | Landing, authentication, dashboard, study, resources, energy check-in, feed, and game pages. |
 | `src/components/` | Shared layout, page components, games, and UI primitives. |
 | `src/lib/extractor.ts` | Browser-side PDF, DOCX, text, and image text extraction. |
-| `src/lib/quizApi.ts` | Client-side study chunking and calls to `/api/quiz`. |
+| `src/lib/quizApi.ts` | Client-side study chunking, energy-aware session sizing, and calls to `/api/quiz`. |
+| `src/lib/safetyApi.ts` | Calls the local safety filter before a community-feed draft is posted. |
 | `src/lib/materials.ts` | Material CRUD, local fallback, and private-file links. |
 | `src/lib/supabase.ts` | Supabase browser client and configuration check. |
 | `src/lib/checkins.ts`, `src/lib/gameProgress.ts` | Device-local check-in history and Workbench progress. |

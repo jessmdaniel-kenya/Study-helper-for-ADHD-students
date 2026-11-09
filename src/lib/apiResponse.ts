@@ -6,7 +6,7 @@ export async function readApiResponse<T>(response: Response): Promise<T> {
     data = JSON.parse(text)
   } catch {
     throw new Error(
-      `The quiz API returned an empty or invalid response (HTTP ${response.status}). ` +
+      `The API returned an empty or invalid response (HTTP ${response.status}). ` +
       'Make sure the local dev server is running and check its terminal for errors.',
     )
   }

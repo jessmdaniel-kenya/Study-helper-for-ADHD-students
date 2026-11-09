@@ -61,8 +61,12 @@ def validate_quiz_request(body: Any) -> dict[str, Any]:
         types = body.get("types", ["mcq", "written"])
         if not isinstance(types, list) or not types or any(not isinstance(value, str) or value not in ALLOWED_TYPES for value in types):
             raise ValueError("Choose at least one supported question type.")
+        energy_level = body.get("energyLevel", "Medium")
+        if not isinstance(energy_level, str) or energy_level not in {"Low", "Medium", "Wired"}:
+            raise ValueError("Energy level must be Low, Medium, or Wired.")
         result["count"] = int(count)
         result["types"] = list(dict.fromkeys(types))
+        result["energyLevel"] = energy_level
     elif not provider:
         raise ValueError("Summaries require an AI provider.")
     return result

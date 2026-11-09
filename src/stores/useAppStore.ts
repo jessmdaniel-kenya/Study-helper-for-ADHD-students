@@ -18,6 +18,7 @@ export interface MaterialProgress {
 export interface MaterialOverview {
   overview: string
   summary: string
+  summaryBlocks?: ({ type: 'heading'; level: number; text: string } | { type: 'paragraph'; text: string } | { type: 'list'; ordered: boolean; items: string[] })[]
   keyPoints: { point: string; quote: string }[]
   keyTerms: { term: string; definition: string }[]
   studyPlan: string[]
