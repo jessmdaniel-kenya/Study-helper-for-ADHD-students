@@ -7,6 +7,8 @@ create table materials (
   title text not null,
   full_text text not null,
   overview jsonb,
+  marked boolean not null default false,
+  progress jsonb not null default '[]',
   created_at timestamptz not null default now(),
   search tsvector generated always as (
     setweight(to_tsvector('simple', coalesce(title, '')), 'A') ||

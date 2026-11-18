@@ -1,5 +1,5 @@
 // src/lib/materials.ts
-import type { Material, MaterialOverview } from '../stores/useAppStore'
+import type { Material, MaterialOverview, MaterialProgress } from '../stores/useAppStore'
 import { ensureSession } from './auth'
 import { supabase, supabaseConfigured } from './supabase'
 
@@ -8,6 +8,7 @@ const BUCKET = 'study-materials'
 const MAX_FILE_BYTES = 25 * 1024 * 1024
 const COLUMNS = 'id,title,full_text,file_name,storage_path'
 const COLUMNS_WITH_OVERVIEW = `${COLUMNS},overview`
+const COLUMNS_WITH_PROGRESS = `${COLUMNS_WITH_OVERVIEW},marked,progress`
 
 type MaterialRow = {
   id: string
@@ -16,6 +17,8 @@ type MaterialRow = {
   file_name: string | null
   storage_path: string | null
   overview: MaterialOverview | null
+  marked?: boolean
+  progress?: unknown
 }
 
 function fromRow(row: MaterialRow): Material {
@@ -26,15 +29,29 @@ function fromRow(row: MaterialRow): Material {
     fileName: row.file_name || undefined,
     storagePath: row.storage_path || undefined,
     overview: row.overview && isMaterialOverview(row.overview) ? row.overview : undefined,
-    marked: false,
-    progress: [],
+    marked: row.marked === true,
+    progress: isMaterialProgress(row.progress) ? row.progress : [],
   }
+}
+
+function progressColumnsMissing(error: { code?: string; message?: string }) {
+  return error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    /column .*marked.* does not exist|could not find .*marked.*column|column .*progress.* does not exist|could not find .*progress.*column/i.test(error.message || '')
 }
 
 function overviewColumnMissing(error: { code?: string; message?: string }) {
   return error.code === '42703' ||
     error.code === 'PGRST204' ||
     /column .*overview.* does not exist|could not find .*overview.*column/i.test(error.message || '')
+}
+
+function isMaterialProgress(value: unknown): value is MaterialProgress[] {
+  return Array.isArray(value) && value.every((entry) => {
+    if (!entry || typeof entry !== 'object') return false
+    const item = entry as Record<string, unknown>
+    return typeof item.format === 'string' && typeof item.score === 'string' && typeof item.date === 'string'
+  })
 }
 
 function isMaterialOverview(value: unknown): value is MaterialOverview {
@@ -108,18 +125,26 @@ function validateFile(file?: File | null) {
 export async function listMaterials(): Promise<Material[]> {
   if (!supabaseConfigured) return readLocalMaterials()
   await ensureSession()
-  const withOverview = await supabase
+  const withProgress = await supabase
     .from('materials')
-    .select(COLUMNS_WITH_OVERVIEW)
+    .select(COLUMNS_WITH_PROGRESS)
     .order('created_at', { ascending: false })
-  if (withOverview.error && !overviewColumnMissing(withOverview.error)) {
-    throw new Error(`Could not sync study materials: ${withOverview.error.message}`)
+  if (withProgress.error && progressColumnsMissing(withProgress.error)) {
+    const withOverview = await supabase
+      .from('materials')
+      .select(COLUMNS_WITH_OVERVIEW)
+      .order('created_at', { ascending: false })
+    if (withOverview.error && !overviewColumnMissing(withOverview.error)) {
+      throw new Error(`Could not sync study materials: ${withOverview.error.message}`)
+    }
+    const fallback = withOverview.error
+      ? await supabase.from('materials').select(COLUMNS).order('created_at', { ascending: false })
+      : withOverview
+    if (fallback.error) throw new Error(`Could not sync study materials: ${fallback.error.message}`)
+    return (fallback.data || []).map((row) => fromRow(row as MaterialRow))
   }
-  const result = withOverview.error
-    ? await supabase.from('materials').select(COLUMNS).order('created_at', { ascending: false })
-    : withOverview
-  if (result.error) throw new Error(`Could not sync study materials: ${result.error.message}`)
-  return (result.data || []).map((row) => fromRow(row as MaterialRow))
+  if (withProgress.error) throw new Error(`Could not sync study materials: ${withProgress.error.message}`)
+  return (withProgress.data || []).map((row) => fromRow(row as MaterialRow))
 }
 
 export async function createMaterial(input: {
@@ -182,6 +207,28 @@ export async function createMaterial(input: {
     throw new Error(`Could not save this study material: ${result.error.message}.${cleanupError}`)
   }
   return fromRow(result.data as MaterialRow)
+}
+
+export async function saveMaterialProgress(id: string, updates: { marked?: boolean; progress?: MaterialProgress[] }): Promise<void> {
+  if (!supabaseConfigured) {
+    const materials = readLocalMaterials()
+    const updated = materials.map((material) => material.id === id ? { ...material, ...updates } : material)
+    if (!updated.some((material) => material.id === id)) throw new Error('This material is no longer available.')
+    writeLocalMaterials(updated)
+    return
+  }
+  await ensureSession()
+  const { data, error } = await supabase
+    .from('materials')
+    .update(updates)
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  if (error && progressColumnsMissing(error)) {
+    throw new Error('Study progress needs the Supabase material-progress migration. In the Supabase SQL Editor, run supabase/migrations/03_material_progress.sql, then retry.')
+  }
+  if (error) throw new Error(`Could not save study progress: ${error.message}`)
+  if (!data) throw new Error('This material is no longer available.')
 }
 
 export async function removeMaterial(id: string, storagePath?: string) {

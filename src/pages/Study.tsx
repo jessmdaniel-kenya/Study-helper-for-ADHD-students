@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
 import { gradeAnswer, makeQuiz, questionCountForMaterial } from '../lib/quizApi'
 import { recordStudyCompletion } from '../lib/gameProgress'
+import { saveMaterialProgress } from '../lib/materials'
 import type { QuizQuestion, QuizType } from '../lib/quizApi'
 import { BookOpen, Check, FileText, Leaf, Sprout, TreePine } from 'lucide-react'
 
@@ -174,6 +175,16 @@ export default function Study() {
       completionRecorded.current = true
       try {
         const { unlockedItem } = recordStudyCompletion()
+        const format = (Object.keys(qTypes) as QuizType[]).filter((type) => qTypes[type]).join(' + ') || 'study session'
+        const materialId = activeMaterial?.id
+        if (materialId) void saveMaterialProgress(materialId, {
+          progress: [
+            ...(activeMaterial?.progress ?? []),
+            { format, score: `first-try ${firstTry}/${total}`, date: new Date().toISOString() },
+          ],
+        }).catch((error: unknown) => {
+          setNote(error instanceof Error ? error.message : 'Your session finished, but progress could not be saved.')
+        })
         if (unlockedItem) setNote(`A new Workbench part was unlocked: ${unlockedItem.name}.`)
       } catch (error) {
         setNote(error instanceof Error ? error.message : 'Your session finished, but game progress could not be saved.')

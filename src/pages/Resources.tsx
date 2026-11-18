@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import type { ChangeEvent, DragEvent } from 'react'
 import { useAppStore } from '../stores/useAppStore'
 import { supabaseConfigured } from '../lib/supabase'
-import { createMaterial, listMaterials, removeMaterial, saveMaterialOverview, signedFileUrl } from '../lib/materials'
+import { createMaterial, listMaterials, removeMaterial, saveMaterialOverview, saveMaterialProgress, signedFileUrl } from '../lib/materials'
 import { extractText } from '../lib/extractor'
 import { summarizeMaterial } from '../lib/quizApi'
 import type { MaterialOverview } from '../stores/useAppStore'
@@ -42,6 +42,17 @@ export default function Resources() {
 
   const toggleProgressView = (id: string) => {
     setShowProgress(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const handleToggleMarked = async (material: (typeof materials)[number]) => {
+    const marked = !material.marked
+    setErr('')
+    try {
+      await saveMaterialProgress(material.id, { marked })
+      toggleMarked(material.id)
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Could not save mark-as-done.')
+    }
   }
 
   const handleFileSelection = (files: FileList | File[]) => {
@@ -174,7 +185,7 @@ export default function Resources() {
                     <input
                       type="checkbox"
                       checked={m.marked}
-                      onChange={() => toggleMarked(m.id)}
+                      onChange={() => { void handleToggleMarked(m) }}
                     />
                     <span className="sr-only">Mark {m.title} as done</span>
                   </label>
