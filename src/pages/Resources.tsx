@@ -209,6 +209,9 @@ export default function Resources() {
                 <section className="material-overview" aria-label={`Overview of ${m.title}`}>
                   <h3 className="hint">Material overview</h3>
                   <p>{m.overview.overview}</p>
+                  {m.overview.mode === 'local' && (
+                    <p className="hint">Basic overview made without AI because the AI service was unavailable. Use “Refresh overview” later for the full version.</p>
+                  )}
                   <details>
                     <summary>Read summary and study guide</summary>
                     {m.overview.summaryBlocks?.length

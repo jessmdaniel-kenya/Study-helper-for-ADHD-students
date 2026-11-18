@@ -135,7 +135,8 @@ export default function Study() {
       setChecking(true)
       try {
         const g = await gradeAnswer(source, q, writtenAnswer)
-        r = { ok: g.verdict === 'Got it', verdict: g.verdict, feedback: g.feedback, best: g.best_fit || q.answer }
+        const feedback = g.mode === 'local' ? `${g.feedback} (Checked with basic keyword matching because the AI service is unavailable.)` : g.feedback
+        r = { ok: g.verdict === 'Got it', verdict: g.verdict, feedback, best: g.best_fit || q.answer }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not grade this answer.'
         setErr(message)

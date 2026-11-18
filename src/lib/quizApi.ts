@@ -13,7 +13,7 @@ export type QuizQuestion = {
   quote: string
 }
 
-export type Grade = { verdict: string; feedback: string; best_fit: string }
+export type Grade = { verdict: string; feedback: string; best_fit: string; mode?: string }
 
 export type MaterialOverview = {
   overview: string
@@ -22,6 +22,9 @@ export type MaterialOverview = {
   keyPoints: { point: string; quote: string }[]
   keyTerms: { term: string; definition: string }[]
   studyPlan: string[]
+  /** 'local' when the built-in non-AI tools made this because the AI service was unavailable. */
+  mode?: string
+  notice?: string
 }
 
 const MAX_QUESTIONS_PER_STUDY_SET = 100
@@ -129,9 +132,10 @@ export async function makeQuiz(
     const count = allocations[index]
     if (!count) continue
     try {
-      const batch = await call<{ questions: QuizQuestion[]; truncated: boolean }>(
+      const batch = await call<{ questions: QuizQuestion[]; truncated: boolean; mode?: string; notice?: string }>(
         { mode: 'generate', notes: chunks[index], count, types, energyLevel: energyLevel || 'Medium' },
       )
+      if (batch.mode === 'local' && batch.notice && !warnings.includes(batch.notice)) warnings.push(batch.notice)
       for (const question of batch.questions) {
         const quote = question.quote.trim().toLocaleLowerCase()
         if (!quotes.has(quote)) {

@@ -23,6 +23,8 @@ Files must be no larger than 25 MB. Extracted text must contain at least 50 non-
 
 NVIDIA NIM is the only remote AI inference provider. The default model is `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`; deployments can set `NVIDIA_MODEL` to a different NVIDIA model. AI configuration lives on the server.
 
+**When the AI provider is unavailable:** if `NVIDIA_API_KEY` is missing, the provider rejects the key (HTTP 401/403), its quota is exhausted (429), or it cannot be reached, `/api/quiz` answers with the built-in non-AI tools instead of failing: keyword-based questions and grading, and an extractive overview built only from sentences in the material. These responses include `"mode": "local"` and a `notice` that the browser shows to the student. After a rejected key the API skips the provider for 5 minutes and does not spend the student's daily AI allowance; the reason is logged in the API terminal as `AI provider unavailable: ...`. Other provider errors (timeouts, malformed output, HTTP 5xx) are still returned as errors. `AI_BASE_URL` can point the API at a different OpenAI-compatible endpoint (for example `http://127.0.0.1:11434/v1` for a local Ollama server) together with `NVIDIA_API_KEY`/`AI_API_KEY` and `NVIDIA_MODEL`/`AI_MODEL`.
+
 ## API endpoints
 
 ### `GET /health`

@@ -149,6 +149,50 @@ def grade_locally(question: str, reference: str, answer: str) -> dict[str, str]:
     return {"verdict": verdict, "feedback": feedback, "best_fit": reference}
 
 
+def summarize_locally(notes: str) -> dict[str, Any]:
+    """Build a basic extractive overview without an AI provider.
+
+    Every sentence is copied from the notes, so nothing is invented.
+    """
+    sentences = list(dict.fromkeys(sentences_from(notes or "")))
+    if not sentences:
+        raise ValueError("Add a few complete sentences so an overview can be made.")
+    sentence_words = [[word.lower() for word in keywords_from(sentence)] for sentence in sentences]
+    frequency: dict[str, int] = {}
+    display: dict[str, str] = {}
+    for sentence, words in zip(sentences, sentence_words):
+        for word in keywords_from(sentence):
+            display.setdefault(word.lower(), word)
+        for word in set(words):
+            frequency[word] = frequency.get(word, 0) + 1
+
+    def score(index: int) -> float:
+        words = sentence_words[index]
+        return sum(frequency[word] for word in set(words)) / math.sqrt(len(words)) if words else 0.0
+
+    ranked = sorted(range(len(sentences)), key=lambda index: (-score(index), index))
+    top = sorted(ranked[:6])
+    top_terms = sorted(frequency, key=lambda word: (-frequency[word], -len(word), word))[:5]
+    lead = sentences[top[0]]
+    details = [sentences[index] for index in top[1:]] or [lead]
+    heading = ", ".join(display[word] for word in top_terms[:3]) or "Main ideas"
+    summary = f"## {heading}\n\n{lead[:500]}\n\n### Key details\n\n" + "\n".join(f"- {item[:300]}" for item in details)
+    key_terms = []
+    for word in top_terms:
+        source_sentence = next(sentence for sentence, words in zip(sentences, sentence_words) if word in words)
+        key_terms.append({"term": display[word][:100], "definition": source_sentence[:300]})
+    return {
+        "overview": sentences[0][:500],
+        "summary": summary,
+        "keyPoints": [{"point": sentences[index][:300], "quote": sentences[index][:500]} for index in ranked[:5]],
+        "keyTerms": key_terms,
+        "studyPlan": [
+            f"Explain {display[top_terms[0]]} out loud without looking at your notes." if top_terms else "Explain the main idea out loud without looking at your notes.",
+            "Turn each key detail into a question and quiz yourself.",
+        ],
+    }
+
+
 def split_summary_source(source: str) -> list[str]:
     chunks: list[str] = []
     start = 0

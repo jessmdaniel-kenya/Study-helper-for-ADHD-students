@@ -22,6 +22,8 @@ export interface MaterialOverview {
   keyPoints: { point: string; quote: string }[]
   keyTerms: { term: string; definition: string }[]
   studyPlan: string[]
+  mode?: string
+  notice?: string
 }
 
 export interface Material {
